@@ -1,0 +1,18 @@
+<svg width="600" height="200" viewBox="0 0 600 200" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect x="1" y="1" width="598" height="198" rx="24" fill="#F8FAFC" stroke="#CBD5F5" stroke-width="2" stroke-dasharray="10 10" />
+  <rect x="50" y="60" width="140" height="80" rx="16" fill="#E0F2FE" />
+  <text x="120" y="108" text-anchor="middle" font-family="Arial" font-size="18" fill="#0F172A">Simulate</text>
+  <rect x="230" y="60" width="140" height="80" rx="16" fill="#DBEAFE" />
+  <text x="300" y="108" text-anchor="middle" font-family="Arial" font-size="18" fill="#0F172A">Remediate</text>
+  <rect x="410" y="60" width="140" height="80" rx="16" fill="#E0F2FE" />
+  <text x="480" y="108" text-anchor="middle" font-family="Arial" font-size="18" fill="#0F172A">Measure</text>
+  <path d="M190 100H222" stroke="#38BDF8" stroke-width="6" stroke-linecap="round" />
+  <path d="M370 100H402" stroke="#38BDF8" stroke-width="6" stroke-linecap="round" />
+  <path d="M402 100L392 93" stroke="#38BDF8" stroke-width="6" stroke-linecap="round" />
+  <path d="M402 100L392 107" stroke="#38BDF8" stroke-width="6" stroke-linecap="round" />
+  <path d="M222 100L212 93" stroke="#38BDF8" stroke-width="6" stroke-linecap="round" />
+  <path d="M222 100L212 107" stroke="#38BDF8" stroke-width="6" stroke-linecap="round" />
+</svg>
+
+
+

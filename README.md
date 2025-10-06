@@ -2,6 +2,8 @@
 
 Minimal Next.js 14 App Router project for the SecureLearning awareness platform microsite. Built with TypeScript and TailwindCSS, ready to deploy on Vercel.
 
+[Check it Out](https://pei-securelearning.vercel.app/)
+
 ## Prerequisites
 
 - Node.js 18.17+ (or any version supported by Next.js 14)

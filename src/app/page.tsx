@@ -20,10 +20,10 @@ export default function Home() {
             awareness improves.
           </p>
           <Link
-            href="/contact"
+            href="/journey"
             className="inline-flex items-center justify-center rounded-full bg-sky-600 px-6 py-3 text-base font-semibold text-white shadow-sm transition hover:bg-sky-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-600"
           >
-            Join the pilot
+            Explore the journey
           </Link>
           <ul className="grid gap-3 pt-4 text-left text-base text-slate-600 md:grid-cols-3 md:text-center">
             {benefits.map((benefit) => (
@@ -79,6 +79,23 @@ export default function Home() {
             </div>
           )
         )}
+      </section>
+      <section className="rounded-3xl border border-slate-200 bg-white p-8 shadow-sm">
+        <div className="flex flex-col gap-4 text-center">
+          <h2 className="text-2xl font-semibold text-slate-900">
+            Follow the SecureLearning journey
+          </h2>
+          <p className="text-base text-slate-600 md:text-lg">
+            Track our personas, requirements, architecture, and more as we
+            build an empathetic security awareness platform.
+          </p>
+          <Link
+            href="/journey"
+            className="mx-auto inline-flex items-center justify-center rounded-full bg-slate-900 px-6 py-3 text-base font-semibold text-white shadow-sm transition hover:bg-slate-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-900"
+          >
+            View the journey timeline
+          </Link>
+        </div>
       </section>
     </div>
   );

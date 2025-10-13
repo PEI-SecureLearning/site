@@ -27,6 +27,12 @@ npm run dev
 
 Then open `http://localhost:3000` to view the site. Changes under `src/` hot-reload automatically.
 
+### Journey & Docs
+
+- The project documentation lives in markdown files under `content/docs/`.
+- Visit `http://localhost:3000/journey` to browse the timeline and open individual docs.
+- To add a new doc, drop a markdown file in `content/docs/`, update metadata in `src/lib/docs.ts`, and the page will pick it up automatically.
+
 ## Building for Production
 
 Create an optimized production build and preview it locally:

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Geist, Geist_Mono } from "next/font/google";
+import { FaGithub } from "react-icons/fa";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -39,7 +40,6 @@ export default function RootLayout({
                 {[
                   { href: "/", label: "Home" },
                   { href: "/how-it-works", label: "How it works" },
-                  { href: "/contact", label: "Contact" },
                 ].map((link) => (
                   <Link
                     key={link.href}
@@ -58,13 +58,24 @@ export default function RootLayout({
             </div>
           </main>
           <footer className="border-t border-slate-200 bg-white/90 py-8 text-sm text-slate-600">
-            <div className="mx-auto flex max-w-5xl flex-col gap-4 px-6 md:flex-row md:items-center md:justify-between">
-              <p>© 2025 SecureLearning – Universidade de Aveiro</p>
-              <p>Advisors: João Almeida · Luís Batista · Filipe Gomes</p>
-              <p>
-                Educational, defensive purpose. Minimal data collected and
-                deleted on request.
-              </p>
+            <div className="mx-auto flex max-w-5xl flex-col gap-6 px-6 md:flex-row md:items-center md:justify-between">
+              <div className="space-y-2">
+                <p>© 2025 SecureLearning – Universidade de Aveiro</p>
+                <p>Advisors: João Almeida · Luís Batista · Filipe Gomes</p>
+                <p>
+                  Educational, defensive purpose. Minimal data collected and
+                  deleted on request.
+                </p>
+              </div>
+              <a
+                href="https://github.com/PEI-SecureLearning"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center justify-center gap-2 rounded-full border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-sky-400 hover:text-sky-600 hover:shadow"
+              >
+                <FaGithub className="text-base" aria-hidden="true" />
+                Visit our GitHub ↗
+              </a>
             </div>
           </footer>
         </div>

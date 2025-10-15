@@ -1,11 +1,11 @@
 import type { Metadata } from "next";
-import Link from "next/link";
-import { Geist, Geist_Mono } from "next/font/google";
-import { FaGithub } from "react-icons/fa";
+import { Inter, Geist_Mono } from "next/font/google";
 import "./globals.css";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+import Navbar from "@/components/Navbar";
+
+const inter = Inter({
+  variable: "--font-inter",
   subsets: ["latin"],
 });
 
@@ -28,54 +28,31 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased bg-slate-50 text-slate-900`}
+        className={`${inter.variable} ${geistMono.variable} antialiased bg-[var(--background)] text-[var(--foreground)]`}
       >
-        <div className="flex min-h-screen flex-col">
-          <header className="border-b border-slate-200 bg-white/80 backdrop-blur">
-            <nav className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-4 px-6 py-5">
-              <Link href="/" className="text-lg font-semibold text-slate-900">
-                SecureLearning
-              </Link>
-              <div className="flex flex-wrap items-center gap-4 text-sm font-medium text-slate-600 md:gap-6">
-                {[
-                  { href: "/", label: "Home" },
-                  { href: "/how-it-works", label: "How it works" },
-                ].map((link) => (
-                  <Link
-                    key={link.href}
-                    href={link.href}
-                    className="transition-colors hover:text-slate-900"
-                  >
-                    {link.label}
-                  </Link>
-                ))}
-              </div>
-            </nav>
-          </header>
+        <div className="flex min-h-screen flex-col bg-[var(--background)]">
+          <Navbar />
           <main className="flex-1">
-            <div className="mx-auto w-full max-w-5xl px-6 py-12 md:py-16">
-              {children}
-            </div>
+            <div className="page-width section-spacing">{children}</div>
           </main>
-          <footer className="border-t border-slate-200 bg-white/90 py-8 text-sm text-slate-600">
-            <div className="mx-auto flex max-w-5xl flex-col gap-6 px-6 md:flex-row md:items-center md:justify-between">
-              <div className="space-y-2">
-                <p>© 2025 SecureLearning – Universidade de Aveiro</p>
-                <p>Advisors: João Almeida · Luís Batista · Filipe Gomes</p>
-                <p>
-                  Educational, defensive purpose. Minimal data collected and
-                  deleted on request.
+          <footer className="border-t border-[rgba(167,139,250,0.12)] bg-[#121017] py-10 text-sm text-[var(--muted)]">
+            <div className="page-width flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
+              <div className="space-y-2 text-[0.95rem]">
+                <p className="text-[var(--foreground)]">
+                  © 2025 SecureLearning | PEI — Universidade de Aveiro.
                 </p>
+                <p>Advisors: João Almeida · Luís Batista · Filipe Gomes</p>
               </div>
-              <a
-                href="https://github.com/PEI-SecureLearning"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center justify-center gap-2 rounded-full border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-sky-400 hover:text-sky-600 hover:shadow"
-              >
-                <FaGithub className="text-base" aria-hidden="true" />
-                Visit our GitHub ↗
-              </a>
+              <div className="flex items-center gap-4">
+                <a
+                  href="https://github.com/PEI-SecureLearning"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="transition hover:text-[var(--accent-secondary)]"
+                >
+                  GitHub Organization
+                </a>
+              </div>
             </div>
           </footer>
         </div>

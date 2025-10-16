@@ -27,21 +27,21 @@ export default async function JourneyDocPage({ params }: JourneyDocPageProps) {
       <header className="space-y-3">
         <Link
           href="/journey"
-          className="inline-flex items-center gap-2 text-sm font-semibold text-sky-600 transition hover:text-sky-700"
+          className="inline-flex items-center gap-2 text-sm font-semibold text-[var(--accent-secondary)] transition hover:text-[var(--foreground)]"
         >
           ← Back to journey timeline
         </Link>
         <div className="flex flex-col gap-2">
-          <span className="text-xs font-semibold uppercase tracking-wide text-sky-600">
+          <span className="text-xs font-semibold uppercase tracking-wide text-[var(--accent-secondary)]">
             {doc.phase}
           </span>
-          <h1 className="text-3xl font-semibold text-slate-900 sm:text-4xl">
+          <h1 className="text-3xl font-semibold text-[var(--foreground)] sm:text-4xl">
             {doc.title}
           </h1>
-          <p className="text-sm text-slate-500">Updated {doc.updated}</p>
+          <p className="text-sm text-[var(--muted)]">Updated {doc.updated}</p>
         </div>
       </header>
-      <div className="prose prose-slate max-w-none" dangerouslySetInnerHTML={{ __html: html }} />
+      <div className="prose max-w-none" dangerouslySetInnerHTML={{ __html: html }} />
     </article>
   );
 }

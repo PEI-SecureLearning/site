@@ -48,7 +48,7 @@ export default function RootLayout({
                   href="https://github.com/PEI-SecureLearning"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="transition hover:text-[var(--accent-secondary)]"
+                  className="inline-flex items-center gap-2 rounded-full border border-[rgba(167,139,250,0.18)] px-3 py-1.5 text-xs font-medium text-[var(--muted)] transition hover:border-[var(--accent-secondary)] hover:text-[var(--accent-secondary)] opacity-85 hover:opacity-100"
                 >
                   GitHub Organization
                 </a>

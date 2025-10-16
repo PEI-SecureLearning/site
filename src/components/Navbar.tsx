@@ -7,7 +7,7 @@ import { FaGithub } from "react-icons/fa";
 const links = [
   { href: "/", label: "Home" },
   { href: "/journey", label: "Journey" },
-  { href: "https://peisecurelearning.github.io/docs", label: "Docs", external: true },
+  { href: "/coming-soon?t=Docs", label: "Docs" },
 ];
 
 export default function Navbar() {
@@ -34,8 +34,6 @@ export default function Navbar() {
             <Link
               key={link.href}
               href={link.href}
-              target={link.external ? "_blank" : undefined}
-              rel={link.external ? "noopener noreferrer" : undefined}
               className="transition-colors hover:text-[var(--foreground)]"
             >
               {link.label}

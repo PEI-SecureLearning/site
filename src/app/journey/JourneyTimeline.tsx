@@ -41,11 +41,23 @@ export function JourneyTimeline({ items }: JourneyTimelineProps) {
         const elementRect = element.getBoundingClientRect();
         const elementCenter =
           window.scrollY + elementRect.top + elementRect.height / 2;
-        if (anchor >= elementCenter) {
+        // Small epsilon to avoid rounding issues on some devices
+        if (anchor + 1 >= elementCenter) {
           activated.push(index);
         }
       });
-      setVisibleIndexes(activated);
+
+      // If scrolled to page bottom, ensure all items are marked active and progress filled
+      const doc = document.documentElement;
+      const atPageBottom =
+        Math.ceil(window.scrollY + window.innerHeight) >=
+        Math.floor(doc.scrollHeight);
+      if (atPageBottom) {
+        setVisibleIndexes(itemRefs.current.map((_, i) => i));
+        setProgress(1);
+      } else {
+        setVisibleIndexes(activated);
+      }
     };
 
     handleScroll();

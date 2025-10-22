@@ -1,36 +1,42 @@
-23:03:30.747 Running build in Washington, D.C., USA (East) – iad1
-23:03:30.748 Build machine configuration: 2 cores, 8 GB
-23:03:30.787 Cloning github.com/PEI-SecureLearning/site (Branch: main, Commit: af3734b)
-23:03:31.086 Cloning completed: 299.000ms
-23:03:32.801 Restored build cache from previous deployment (6atTDMHWh3jzALRuZiYAbNQGRrVu)
-23:03:33.213 Running "vercel build"
-23:03:33.603 Vercel CLI 48.2.9
-23:03:33.942 Installing dependencies...
-23:03:35.391 
-23:03:35.392 added 1 package, and removed 1 package in 1s
-23:03:35.392 
-23:03:35.392 222 packages are looking for funding
-23:03:35.392   run `npm fund` for details
-23:03:35.422 Detected Next.js version: 15.5.4
-23:03:35.427 Running "npm run build"
-23:03:35.534 
-23:03:35.534 > site@0.1.0 build
-23:03:35.534 > next build --turbopack
-23:03:35.535 
-23:03:36.651    ▲ Next.js 15.5.4 (Turbopack)
-23:03:36.651 
-23:03:36.724    Creating an optimized production build ...
-23:03:47.328  ✓ Finished writing to disk in 24ms
-23:03:47.354  ✓ Compiled successfully in 9.9s
-23:03:47.365    Linting and checking validity of types ...
-23:03:51.618 
-23:03:51.619 Failed to compile.
-23:03:51.619 
-23:03:51.619 ./src/components/ShinyText.tsx
-23:03:51.619 16:48  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
-23:03:51.619 
-23:03:51.619 ./src/components/effects/DarkVeil.tsx
-23:03:51.619 164:53  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
-23:03:51.619 
-23:03:51.619 info  - Need to disable some ESLint rules? Learn more here: https://nextjs.org/docs/app/api-reference/config/eslint#disabling-rules
-23:03:51.653 Error: Command "npm run build" exited with 1
+01:09:47.165 Running build in Washington, D.C., USA (East) – iad1
+01:09:47.166 Build machine configuration: 2 cores, 8 GB
+01:09:47.181 Cloning github.com/PEI-SecureLearning/site (Branch: main, Commit: 408124f)
+01:09:47.931 Cloning completed: 750.000ms
+01:09:49.200 Restored build cache from previous deployment (4aZWy2T7rZhYyHU6CMMHHkAAqJZR)
+01:09:49.603 Running "vercel build"
+01:09:49.991 Vercel CLI 48.2.9
+01:09:50.313 Installing dependencies...
+01:09:51.556 
+01:09:51.557 up to date in 1s
+01:09:51.557 
+01:09:51.557 222 packages are looking for funding
+01:09:51.558   run `npm fund` for details
+01:09:51.587 Detected Next.js version: 15.5.4
+01:09:51.591 Running "npm run build"
+01:09:51.702 
+01:09:51.702 > site@0.1.0 build
+01:09:51.702 > next build --turbopack
+01:09:51.702 
+01:09:52.816    ▲ Next.js 15.5.4 (Turbopack)
+01:09:52.817 
+01:09:52.895    Creating an optimized production build ...
+01:10:03.916  ✓ Finished writing to disk in 23ms
+01:10:03.941  ✓ Compiled successfully in 10.3s
+01:10:03.946    Linting and checking validity of types ...
+01:10:09.611    Collecting page data ...
+01:10:10.486    Generating static pages (0/12) ...
+01:10:11.308  ⨯ useSearchParams() should be wrapped in a suspense boundary at page "/404". Read more: https://nextjs.org/docs/messages/missing-suspense-with-csr-bailout
+01:10:11.308     at g (/vercel/path0/.next/server/chunks/ssr/node_modules_e7959212._.js:4:5016)
+01:10:11.308     at m (/vercel/path0/.next/server/chunks/ssr/node_modules_e7959212._.js:4:6650)
+01:10:11.308     at o (/vercel/path0/.next/server/chunks/ssr/_89c8c20e._.js:1:4078)
+01:10:11.308     at n3 (/vercel/path0/node_modules/next/dist/compiled/next-server/app-page-turbo.runtime.prod.js:2:82831)
+01:10:11.308     at n6 (/vercel/path0/node_modules/next/dist/compiled/next-server/app-page-turbo.runtime.prod.js:2:84601)
+01:10:11.308     at n6 (/vercel/path0/node_modules/next/dist/compiled/next-server/app-page-turbo.runtime.prod.js:2:101560)
+01:10:11.308     at n5 (/vercel/path0/node_modules/next/dist/compiled/next-server/app-page-turbo.runtime.prod.js:2:104801)
+01:10:11.308     at n7 (/vercel/path0/node_modules/next/dist/compiled/next-server/app-page-turbo.runtime.prod.js:2:102219)
+01:10:11.309     at aa (/vercel/path0/node_modules/next/dist/compiled/next-server/app-page-turbo.runtime.prod.js:2:108211)
+01:10:11.309     at ae (/vercel/path0/node_modules/next/dist/compiled/next-server/app-page-turbo.runtime.prod.js:2:106833)
+01:10:11.309 Error occurred prerendering page "/_not-found". Read more: https://nextjs.org/docs/messages/prerender-error
+01:10:11.309 Export encountered an error on /_not-found/page: /_not-found, exiting the build.
+01:10:11.342  ⨯ Next.js build worker exited with code: 1 and signal: null
+01:10:11.369 Error: Command "npm run build" exited with 1

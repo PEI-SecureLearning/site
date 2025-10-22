@@ -2,16 +2,28 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { usePathname, useSearchParams } from "next/navigation";
 import { FaGithub } from "react-icons/fa";
 
 const links = [
-  { href: "/", label: "Home" },
   { href: "/journey", label: "Journey" },
   { href: "/coming-soon?t=Docs", label: "Docs" },
+  { href: "/coming-soon?t=About", label: "About" },
 ];
 
 export default function Navbar() {
   const [isScrolled, setIsScrolled] = useState(false);
+  const pathname = usePathname();
+  const search = useSearchParams();
+
+  const isActive = (href: string, label: string) => {
+    if (href.startsWith("/journey")) return pathname?.startsWith("/journey");
+    if (href.startsWith("/coming-soon")) {
+      const t = search?.get("t")?.toLowerCase();
+      return pathname === "/coming-soon" && t === label.toLowerCase();
+    }
+    return false;
+  };
 
   useEffect(() => {
     const handler = () => setIsScrolled(window.scrollY > 24);
@@ -30,15 +42,23 @@ export default function Navbar() {
           SecureLearning
         </Link>
         <div className="hidden items-center gap-6 text-sm font-medium text-[var(--muted)] md:flex">
-          {links.map((link) => (
-            <Link
-              key={link.href}
-              href={link.href}
-              className="transition-colors hover:text-[var(--foreground)]"
-            >
-              {link.label}
-            </Link>
-          ))}
+          {links.map((link) => {
+            const active = isActive(link.href, link.label);
+            return (
+              <Link
+                key={link.href}
+                href={link.href}
+                className={`${
+                  active
+                    ? "inline-flex items-center rounded-full border border-dashed border-[rgba(167,139,250,0.45)] px-3 py-1 text-[var(--foreground)]"
+                    : "transition-colors hover:text-[var(--foreground)]"
+                }`}
+                aria-current={active ? "page" : undefined}
+              >
+                {link.label}
+              </Link>
+            );
+          })}
         </div>
         <a
           href="https://github.com/PEI-SecureLearning"

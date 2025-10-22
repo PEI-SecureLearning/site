@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Inter, Geist_Mono } from "next/font/google";
+import { Suspense } from "react";
 import "./globals.css";
 
 import Navbar from "@/components/Navbar";
@@ -31,7 +32,9 @@ export default function RootLayout({
         className={`${inter.variable} ${geistMono.variable} antialiased bg-[var(--background)] text-[var(--foreground)]`}
       >
         <div className="flex min-h-screen flex-col bg-[var(--background)]">
-          <Navbar />
+          <Suspense fallback={null}>
+            <Navbar />
+          </Suspense>
           <main className="flex-1">
             <div className="page-width section-spacing">{children}</div>
           </main>

@@ -197,6 +197,16 @@ a:hover {
 .prose td { border: 1px solid rgba(167,139,250,0.18); padding: 0.6rem 0.75rem; }
 .prose th { background: rgba(124,58,237,0.08); text-align: left; }
 
+/* Images: always block-level with spacing so they don't sit inline with text */
+.prose img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin: 1.25rem auto;
+  border-radius: 0.75rem;
+  border: 1px solid rgba(167,139,250,0.18);
+}
+
 .prose a {
   color: var(--accent-secondary);
 }

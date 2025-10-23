@@ -1,4 +1,5 @@
-import { SiGoogledrive } from "react-icons/si";
+import Link from "next/link";
+import { FiFileText } from "react-icons/fi";
 
 import { JourneyTimeline } from "./JourneyTimeline";
 import { docs } from "@/lib/docs";
@@ -19,19 +20,14 @@ export default function JourneyPage() {
         <Reveal>
           <div className="space-y-8">
             <h1 className="text-3xl font-semibold sm:text-4xl md:text-5xl">
-              Journey & Documentation
+              Our Journey
             </h1>
-            <a
-              href="https://drive.google.com/drive/folders/16fEmhrUOej-AyEkDoonmscDeMmI5PvvR?usp=sharing"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="btn btn-primary"
-            >
+            <Link href="/coming-soon?t=Docs" className="btn btn-primary">
               <span className="inline-flex items-center gap-2">
-                <SiGoogledrive className="text-lg" aria-hidden="true" />
-                SecureLearning Drive ↗
+                <FiFileText className="text-lg" aria-hidden="true" />
+                Docs (Coming Soon)
               </span>
-            </a>
+            </Link>
           </div>
         </Reveal>
       </section>

@@ -11,6 +11,12 @@ interface MarkdownOptions {
   removeHeading?: string;
 }
 
+export interface TocItem {
+  id: string;
+  text: string;
+  level: number;
+}
+
 function stripHeadingPlugin(title: string) {
   return () => (tree: Root) => {
     if (!tree.children.length) return;
@@ -29,7 +35,65 @@ function stripHeadingPlugin(title: string) {
   };
 }
 
+type AstNode = {
+  type?: string;
+  url?: string;
+  depth?: number;
+  value?: string;
+  children?: AstNode[];
+  data?: {
+    [key: string]: unknown;
+    hProperties?: Record<string, unknown>;
+  };
+};
+
+function slugify(value: string) {
+  return value
+    .toLowerCase()
+    .trim()
+    .replace(/[\s/]+/g, "-")
+    .replace(/[^a-z0-9-]/g, "")
+    .replace(/-+/g, "-");
+}
+
+function collectHeadingsPlugin(target: TocItem[]) {
+  return () => (tree: Root) => {
+    const slugCounts = new Map<string, number>();
+
+    const visit = (node: AstNode | undefined) => {
+      if (!node) return;
+      if (node.type === "heading" && typeof node.depth === "number") {
+        const level = node.depth;
+        if (level >= 1 && level <= 4) {
+          const text = toString(node as unknown as Root).trim();
+          if (text) {
+            const baseSlug = slugify(text);
+            const count = slugCounts.get(baseSlug) ?? 0;
+            const id = count > 0 ? `${baseSlug}-${count}` : baseSlug;
+            slugCounts.set(baseSlug, count + 1);
+
+            if (!node.data) node.data = {};
+            const data = node.data;
+            data.id = id;
+            data.hProperties = { ...(data.hProperties ?? {}), id };
+
+            target.push({ id, text, level });
+          }
+        }
+      }
+
+      if (Array.isArray(node.children)) {
+        node.children.forEach((child) => visit(child));
+      }
+    };
+
+    visit(tree as unknown as AstNode);
+  };
+}
+
 export async function markdownToHtml(markdown: string, options: MarkdownOptions = {}) {
+  const headings: TocItem[] = [];
+
   const processor = unified()
     .use(remarkParse)
     .use(remarkGfm)
@@ -41,18 +105,17 @@ export async function markdownToHtml(markdown: string, options: MarkdownOptions 
   }
 
   const file = await processor
+    .use(collectHeadingsPlugin(headings))
     .use(remarkRehype, { allowDangerousHtml: true })
     .use(rehypeStringify, { allowDangerousHtml: true })
     .process(markdown);
 
-  return String(file);
+  return { html: String(file), headings };
 }
-
-type MdNode = { type?: string; url?: string; children?: MdNode[] };
 
 function rewriteRelativeImagesPlugin(basePath: string) {
   return () => (tree: Root) => {
-    const visit = (node: MdNode | undefined): void => {
+    const visit = (node: AstNode | undefined): void => {
       if (!node) return;
       if (node.type === "image" && typeof node.url === "string") {
         const url = node.url;
@@ -61,7 +124,7 @@ function rewriteRelativeImagesPlugin(basePath: string) {
       }
       if (Array.isArray(node.children)) node.children.forEach(visit);
     };
-    visit(tree as unknown as MdNode);
+    visit(tree as unknown as AstNode);
   };
 }
 

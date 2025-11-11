@@ -7,23 +7,18 @@ import { FaGithub } from "react-icons/fa";
 
 const links = [
   { href: "/journey", label: "Journey" },
-  { href: "/coming-soon?t=Docs", label: "Docs" },
-  { href: "/coming-soon?t=About", label: "About" },
+  { href: "/about", label: "About" },
 ];
 
 export default function Navbar() {
   const [isScrolled, setIsScrolled] = useState(false);
+  const [mounted, setMounted] = useState(false);
   const pathname = usePathname();
   const search = useSearchParams();
 
-  const isActive = (href: string, label: string) => {
-    if (href.startsWith("/journey")) return pathname?.startsWith("/journey");
-    if (href.startsWith("/coming-soon")) {
-      const t = search?.get("t")?.toLowerCase();
-      return pathname === "/coming-soon" && t === label.toLowerCase();
-    }
-    return false;
-  };
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     const handler = () => setIsScrolled(window.scrollY > 24);
@@ -31,6 +26,17 @@ export default function Navbar() {
     window.addEventListener("scroll", handler, { passive: true });
     return () => window.removeEventListener("scroll", handler);
   }, []);
+
+  const isActive = (href: string, label: string) => {
+    if (!mounted) return false;
+    if (href.startsWith("/journey")) return pathname?.startsWith("/journey");
+    if (href === "/about") return pathname === "/about";
+    if (href.startsWith("/coming-soon")) {
+      const t = search?.get("t")?.toLowerCase();
+      return pathname === "/coming-soon" && t === label.toLowerCase();
+    }
+    return false;
+  };
 
   return (
     <header

@@ -9,6 +9,7 @@ export interface DocMeta {
   file: string;
   phase: string;
   order: number;
+  isMilestone?: boolean;
 }
 
 const DOCS_ROOT = path.join(process.cwd(), "content", "docs");
@@ -20,7 +21,7 @@ export const docs: DocMeta[] = [
     summary: "Profiles of key stakeholders guiding SecureLearning decisions.",
     updated: "2025-10-13",
     file: "personas.md",
-    phase: "Discover",
+    phase: "Inception",
     order: 1,
   },
   {
@@ -29,7 +30,7 @@ export const docs: DocMeta[] = [
     summary: "Narratives capturing needs from the main stakeholders.",
     updated: "2025-10-13",
     file: "user-stories.md",
-    phase: "Define",
+    phase: "Inception",
     order: 2,
   },
   {
@@ -38,26 +39,36 @@ export const docs: DocMeta[] = [
     summary: "Functional and non-functional expectations for the platform.",
     updated: "2025-10-16",
     file: "requirements.md",
-    phase: "Design",
+    phase: "Inception",
     order: 3,
+  },
+  {
+    slug: "mockups",
+    title: "Paper Mockups",
+    summary: "Visual direction for each persona's main screens.",
+    updated: "2025-10-20",
+    file: "mockups.md",
+    phase: "Inception",
+    order: 4,
   },
   {
     slug: "architecture",
     title: "Architecture Overview",
     summary: "System components, data flow, and integration points.",
-    updated: "2025-10-20",
+    updated: "2025-10-27",
     file: "architecture.md",
-    phase: "Design",
-    order: 4,
+    phase: "Inception",
+    order: 5,
   },
   {
-    slug: "mockups",
-    title: "Mockups & UI Notes",
-    summary: "Visual direction for campaign, training, and dashboard experiences.",
-    updated: "2025-10-20",
-    file: "mockups.md",
-    phase: "Prototype",
-    order: 5,
+    slug: "milestone-1",
+    title: "Milestone 1: Inception",
+    summary: "Project overview, inception phase summary.",
+    updated: "2025-10-28",
+    file: "milestone-1.md",
+    phase: "Milestone",
+    order: 6,
+    isMilestone: true,
   },
 ];
 

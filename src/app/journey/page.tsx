@@ -33,9 +33,7 @@ export default function JourneyPage() {
       </section>
 
       <section>
-        <Reveal>
-          <JourneyTimeline items={orderedDocs} />
-        </Reveal>
+        <JourneyTimeline items={orderedDocs} />
       </section>
     </div>
   );

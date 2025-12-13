@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 import { FaGithub } from "react-icons/fa";
+import { SiFigma, SiJira } from "react-icons/si";
 
 const links = [
   { href: "/journey", label: "Journey" },
@@ -66,15 +67,35 @@ export default function Navbar() {
             );
           })}
         </div>
-        <a
-          href="https://github.com/PEI-SecureLearning"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="flex h-10 w-10 items-center justify-center rounded-full border border-[rgba(167,139,250,0.35)] text-[var(--foreground)] transition hover:border-[var(--accent-secondary)] hover:text-[var(--accent-secondary)]"
-          aria-label="SecureLearning on GitHub"
-        >
-          <FaGithub className="text-xl" aria-hidden="true" />
-        </a>
+        <div className="flex items-center gap-3">
+          <a
+            href="https://github.com/PEI-SecureLearning"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex h-10 w-10 items-center justify-center rounded-full border border-[rgba(167,139,250,0.35)] text-[var(--foreground)] transition hover:border-[var(--accent-secondary)] hover:text-[var(--accent-secondary)]"
+            aria-label="SecureLearning on GitHub"
+          >
+            <FaGithub className="text-xl" aria-hidden="true" />
+          </a>
+          <a
+            href="https://www.figma.com/design/FxC3tTWqKSIVrwPGa8WljP/SecureLearning?node-id=15-793&t=s9KOuu8oBwiQxcEY-1"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex h-10 w-10 items-center justify-center rounded-full border border-[rgba(167,139,250,0.35)] text-[var(--foreground)] transition hover:border-[var(--accent-secondary)] hover:text-[var(--accent-secondary)]"
+            aria-label="SecureLearning on Figma"
+          >
+            <SiFigma className="text-lg" aria-hidden="true" />
+          </a>
+          <a
+            href="https://secure-learning.atlassian.net/jira/software/projects/SL/boards/1/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex h-10 w-10 items-center justify-center rounded-full border border-[rgba(167,139,250,0.35)] text-[var(--foreground)] transition hover:border-[var(--accent-secondary)] hover:text-[var(--accent-secondary)]"
+            aria-label="SecureLearning on Jira"
+          >
+            <SiJira className="text-lg" aria-hidden="true" />
+          </a>
+        </div>
       </nav>
     </header>
   );

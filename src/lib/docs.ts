@@ -116,6 +116,16 @@ export const docs: DocMeta[] = [
     order: 11,
     isMilestone: true,
   },
+  {
+    slug: "mvp-workflows",
+    title: "MVP Workflow Videos",
+    summary:
+      "Short walkthrough videos of the MVP workflows.",
+    updated: "2025-12-14",
+    file: "mvp-workflows.md",
+    phase: "Construction",
+    order: 12,
+  },
 
 ];
 

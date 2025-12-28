@@ -126,6 +126,16 @@ export const docs: DocMeta[] = [
     phase: "Construction",
     order: 12,
   },
+  {
+    slug: "milestone-3",
+    title: "Milestone 3: MVP",
+    summary: "MVP demo, key flows, and what we built during Construction.",
+    updated: "2025-12-14",
+    file: "milestone-3.md",
+    phase: "Construction",
+    order: 13,
+    isMilestone: true,
+  },
 
 ];
 

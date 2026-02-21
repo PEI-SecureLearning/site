@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
@@ -45,8 +46,15 @@ export default function Navbar() {
       data-scrolled={isScrolled}
     >
       <nav className="page-width flex items-center justify-between gap-6 py-5">
-        <Link href="/" className="text-lg font-semibold text-[var(--foreground)]">
-          SecureLearning
+        <Link href="/" className="inline-flex items-center">
+          <Image
+            src="/assets/branding/logo-horizontal.png"
+            alt="SecureLearning"
+            width={230}
+            height={46}
+            className="h-10 w-auto origin-left scale-125"
+            priority
+          />
         </Link>
         <div className="hidden items-center gap-6 text-sm font-medium text-[var(--muted)] md:flex">
           {links.map((link) => {

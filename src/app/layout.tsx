@@ -19,6 +19,11 @@ export const metadata: Metadata = {
   title: "SecureLearning – Cybersecurity Awareness Platform",
   description:
     "Safe phishing simulations, just-in-time training, and measurable awareness improvement.",
+  icons: {
+    icon: [{ url: "/assets/branding/logo-icon.png", type: "image/png" }],
+    shortcut: [{ url: "/assets/branding/logo-icon.png", type: "image/png" }],
+    apple: [{ url: "/assets/branding/logo-icon.png", type: "image/png" }],
+  },
 };
 
 export default function RootLayout({

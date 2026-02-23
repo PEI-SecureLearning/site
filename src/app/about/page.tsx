@@ -1,5 +1,4 @@
 import { type Metadata } from "next";
-import Image from "next/image";
 
 export const metadata: Metadata = {
   title: "About — SecureLearning",
@@ -9,14 +8,12 @@ export const metadata: Metadata = {
 export default function AboutPage() {
   return (
     <section className="full-bleed relative -mt-[clamp(3.5rem,9vh,6rem)] min-h-[calc(100vh-6rem)] w-full">
-      <Image
-        src="/assets/team.png"
-        alt="The SecureLearning Team"
-        fill
-        className="object-contain"
-        priority
+      <iframe
+        src="/Passadeira/passadeira.html"
+        title="The SecureLearning Team"
+        className="h-full w-full border-0"
+        style={{ minHeight: "calc(100vh - 6rem)" }}
       />
     </section>
   );
 }
-

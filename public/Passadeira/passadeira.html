@@ -6,7 +6,7 @@
     <meta charset="utf-8">
     <style>
         body {
-            background-color: #000000;
+            background-color: #0c0a0f;
             margin: 0px;
             overflow: hidden;
         }
@@ -86,9 +86,42 @@
                     bevelEnabled: false
                 });
 
+                team.computeBoundingBox();
+                const minX = team.boundingBox.min.x;
+                const rangeX = team.boundingBox.max.x - minX;
+                const posAttr = team.getAttribute('position');
+                let uvAttr = team.getAttribute('uv');
+                if (!uvAttr) {
+                    team.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(posAttr.count * 2), 2));
+                    uvAttr = team.getAttribute('uv');
+                }
+                for (let i = 0; i < posAttr.count; i++) {
+                    uvAttr.setX(i, (posAttr.getX(i) - minX) / rangeX);
+                }
 
-                const material = new THREE.MeshStandardMaterial({ color: 0xffffff });
-                const purple = new THREE.MeshStandardMaterial({ color: 0x890de0 });
+                const canvas = document.createElement('canvas');
+                canvas.width = 1024;
+                canvas.height = 4;
+                const ctx = canvas.getContext('2d');
+                const grad = ctx.createLinearGradient(0, 0, 1024, 0);
+                grad.addColorStop(0, '#7c3aed');
+                grad.addColorStop(0.5, '#9b6bff');
+                grad.addColorStop(1, '#a78bfa');
+                ctx.fillStyle = grad;
+                ctx.fillRect(0, 0, 1024, 4);
+
+                const gradTex = new THREE.CanvasTexture(canvas);
+                gradTex.colorSpace = THREE.SRGBColorSpace;
+
+                const material = new THREE.MeshStandardMaterial({ color: 0xededed });
+                const frontMaterial = new THREE.MeshBasicMaterial({ map: gradTex });
+                // Side material reacts to light to give 3D depth, but front stays exactly the CSS gradient
+                const sideMaterial = new THREE.MeshStandardMaterial({ 
+                    color: 0x7c3aed, 
+                    roughness: 0.5, 
+                    metalness: 0.1 
+                });
+                const titleMaterial = [frontMaterial, sideMaterial];
 
                 const textMesh = new THREE.Mesh(simao, material);
 
@@ -111,7 +144,7 @@
                 textMesh5.position.set(-13, 8, 0);
                 scene.add(textMesh5);
 
-                const textMesh6 = new THREE.Mesh(team, purple);
+                const textMesh6 = new THREE.Mesh(team, titleMaterial);
                 textMesh6.position.set(-10, 12, -8);
                 scene.add(textMesh6);
             }
@@ -139,7 +172,8 @@
         function add_crosswalk(scene) {
 
             const geometry = new THREE.PlaneGeometry(15, 2);
-            const material = new THREE.MeshBasicMaterial({ color: 0x890de0, side: THREE.DoubleSide });
+            // Crosswalk uses a brighter purple than model bodies.
+            const material = new THREE.MeshBasicMaterial({ color: 0xa78bfa, side: THREE.DoubleSide });
             const crosswalk1 = new THREE.Mesh(geometry, material);
             const crosswalk2 = new THREE.Mesh(geometry, material);
             const crosswalk3 = new THREE.Mesh(geometry, material);
@@ -233,7 +267,7 @@
         async function init() {
             // 1. The SCENE
             scene = new THREE.Scene();
-            scene.background = new THREE.Color(0x000000);
+            scene.background = new THREE.Color(0x0c0a0f);
 
             loader = new GLTFLoader();
 
@@ -281,6 +315,28 @@
             igor = await load_model(loader, './models/Igor.glb', scene);
             simon = await load_model(loader, './models/Simao.glb', scene);
             tiago = await load_model(loader, './models/Tiago.glb', scene);
+
+            // Safe recolor pass: only material tinting, no geometry/rig changes.
+            const bodyColor = new THREE.Color(0x7c3aed);
+            [andre, gabriel, igor, simon, tiago].forEach((model) => {
+                model.traverse((child) => {
+                    if (!child.isMesh || !child.material) return;
+                    const materials = Array.isArray(child.material) ? child.material : [child.material];
+                    const recolored = materials.map((mat) => {
+                        if (!mat || !('clone' in mat)) return mat;
+                        const clone = mat.clone();
+                        // Keep textured materials (e.g., face photos) untouched.
+                        if (clone.map) {
+                            return clone;
+                        }
+                        if ('color' in clone && clone.color) {
+                            clone.color.copy(bodyColor);
+                        }
+                        return clone;
+                    });
+                    child.material = Array.isArray(child.material) ? recolored : recolored[0];
+                });
+            });
 
             andre.position.set(-10, 0, 0);
             gabriel.position.set(-5, 0, 0);

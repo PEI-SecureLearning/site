@@ -37,6 +37,9 @@
         fontLoader.load(
             'https://threejs.org/examples/fonts/helvetiker_regular.typeface.json',
             function (font) {
+                fontLoader.load(
+                    'https://threejs.org/examples/fonts/helvetiker_bold.typeface.json',
+                    function (boldFont) {
 
                 const simao = new TextGeometry('Simao\n  Santos', {
                     font: font,
@@ -79,11 +82,15 @@
                 });
 
                 const team = new TextGeometry('Meet the Team', {
-                    font: font,
+                    font: boldFont,
                     size: 2,
                     height: 0.3,
                     curveSegments: 12,
-                    bevelEnabled: false
+                    bevelEnabled: true,
+                    bevelThickness: 0.015,
+                    bevelSize: 0.015,
+                    bevelOffset: 0,
+                    bevelSegments: 2
                 });
 
                 team.computeBoundingBox();
@@ -115,11 +122,9 @@
 
                 const material = new THREE.MeshStandardMaterial({ color: 0xededed });
                 const frontMaterial = new THREE.MeshBasicMaterial({ map: gradTex });
-                // Side material reacts to light to give 3D depth, but front stays exactly the CSS gradient
-                const sideMaterial = new THREE.MeshStandardMaterial({ 
-                    color: 0x7c3aed, 
-                    roughness: 0.5, 
-                    metalness: 0.1 
+                // Solid unlit dark purple for sides/bevels to prevent any pink highlights
+                const sideMaterial = new THREE.MeshBasicMaterial({ 
+                    color: 0x7c3aed 
                 });
                 const titleMaterial = [frontMaterial, sideMaterial];
 
@@ -147,6 +152,8 @@
                 const textMesh6 = new THREE.Mesh(team, titleMaterial);
                 textMesh6.position.set(-10, 12, -8);
                 scene.add(textMesh6);
+                    }
+                );
             }
         );
 

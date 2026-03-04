@@ -11,7 +11,7 @@ const cards = [
     {
         icon: "👥",
         title: "Role-based access control",
-        desc: "Fine-grained permissions across your entire organization — admins, managers, learners.",
+        desc: "Fine-grained permissions across your entire organization.",
     },
     {
         icon: "📋",
@@ -21,7 +21,7 @@ const cards = [
     {
         icon: "🏢",
         title: "Multi-tenant architecture",
-        desc: "One platform, full isolation between organizations. Your data never co-mingles.",
+        desc: "One platform, full isolation between organizations.",
     },
 ];
 

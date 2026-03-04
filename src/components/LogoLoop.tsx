@@ -3,21 +3,21 @@ import './LogoLoop.css';
 
 export type LogoItem =
   | {
-      node: React.ReactNode;
-      href?: string;
-      title?: string;
-      ariaLabel?: string;
-    }
+    node: React.ReactNode;
+    href?: string;
+    title?: string;
+    ariaLabel?: string;
+  }
   | {
-      src: string;
-      alt?: string;
-      href?: string;
-      title?: string;
-      srcSet?: string;
-      sizes?: string;
-      width?: number;
-      height?: number;
-    };
+    src: string;
+    alt?: string;
+    href?: string;
+    title?: string;
+    srcSet?: string;
+    sizes?: string;
+    width?: number;
+    height?: number;
+  };
 
 export interface LogoLoopProps {
   logos: LogoItem[];
@@ -30,6 +30,7 @@ export interface LogoLoopProps {
   hoverSpeed?: number;
   fadeOut?: boolean;
   fadeOutColor?: string;
+  fadeWidth?: string | number;
   scaleOnHover?: boolean;
   renderItem?: (item: LogoItem, key: React.Key) => React.ReactNode;
   ariaLabel?: string;
@@ -193,6 +194,7 @@ export const LogoLoop = React.memo<LogoLoopProps>(
     hoverSpeed,
     fadeOut = false,
     fadeOutColor,
+    fadeWidth,
     scaleOnHover = false,
     renderItem,
     ariaLabel = 'Partner logos',
@@ -265,9 +267,10 @@ export const LogoLoop = React.memo<LogoLoopProps>(
         ({
           '--logoloop-gap': `${gap}px`,
           '--logoloop-logoHeight': `${logoHeight}px`,
-          ...(fadeOutColor && { '--logoloop-fadeColor': fadeOutColor })
+          ...(fadeOutColor && { '--logoloop-fadeColor': fadeOutColor }),
+          ...(fadeWidth !== undefined && { '--logoloop-fadeWidth': typeof fadeWidth === 'number' ? `${fadeWidth}px` : fadeWidth })
         }) as React.CSSProperties,
-      [gap, logoHeight, fadeOutColor]
+      [gap, logoHeight, fadeOutColor, fadeWidth]
     );
 
     const rootClassName = useMemo(

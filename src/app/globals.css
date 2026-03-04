@@ -83,7 +83,8 @@ a:hover {
 .btn-primary:focus-visible {
   background: var(--accent-secondary);
   box-shadow: var(--glow-primary);
-  color: var(--foreground); /* keep text legible against purple hover bg */
+  color: var(--foreground);
+  /* keep text legible against purple hover bg */
 }
 
 .btn-secondary {
@@ -114,12 +115,10 @@ a:hover {
   inset: -25% -35% auto;
   height: clamp(360px, 55vh, 520px);
   border-radius: 999px;
-  background: radial-gradient(
-    60% 60% at 50% 10%,
-    rgba(124, 58, 237, 0.45),
-    rgba(12, 10, 15, 0.35) 65%,
-    rgba(12, 10, 15, 0)
-  );
+  background: radial-gradient(60% 60% at 50% 10%,
+      rgba(124, 58, 237, 0.45),
+      rgba(12, 10, 15, 0.35) 65%,
+      rgba(12, 10, 15, 0));
   filter: blur(45px);
   opacity: 0.9;
   z-index: -1;
@@ -159,6 +158,30 @@ a:hover {
   font-weight: 600;
 }
 
+/* Eyebrow label above section headings */
+.section-label {
+  display: inline-block;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--accent-secondary);
+  opacity: 0.85;
+}
+
+/* Logo marquee — greyscale + brightness for the partner logos */
+.logo-marquee-filter img {
+  filter: grayscale(1) brightness(3.5) invert(0);
+  opacity: 0.6;
+  transition: filter 200ms ease, opacity 200ms ease;
+}
+
+.logo-marquee-filter img:hover {
+  filter: grayscale(0.4) brightness(2);
+  opacity: 0.9;
+}
+
+
 .prose {
   color: var(--foreground);
 }
@@ -171,10 +194,29 @@ a:hover {
 }
 
 /* Headings hierarchy and spacing */
-.prose h1 { font-size: clamp(1.75rem, 3.4vw, 2.25rem); font-weight: 700; margin: 1.6em 0 0.6em; }
-.prose h2 { font-size: clamp(1.4rem, 2.6vw, 1.75rem); font-weight: 700; margin: 1.4em 0 0.6em; }
-.prose h3 { font-size: clamp(1.2rem, 2vw, 1.35rem); font-weight: 600; margin: 1.2em 0 0.5em; }
-.prose h4 { font-size: 1.05rem; font-weight: 600; margin: 1em 0 0.4em; }
+.prose h1 {
+  font-size: clamp(1.75rem, 3.4vw, 2.25rem);
+  font-weight: 700;
+  margin: 1.6em 0 0.6em;
+}
+
+.prose h2 {
+  font-size: clamp(1.4rem, 2.6vw, 1.75rem);
+  font-weight: 700;
+  margin: 1.4em 0 0.6em;
+}
+
+.prose h3 {
+  font-size: clamp(1.2rem, 2vw, 1.35rem);
+  font-weight: 600;
+  margin: 1.2em 0 0.5em;
+}
+
+.prose h4 {
+  font-size: 1.05rem;
+  font-weight: 600;
+  margin: 1em 0 0.4em;
+}
 
 /* Lists */
 .prose ul,
@@ -182,20 +224,53 @@ a:hover {
   margin: 0.75em 0 1em;
   padding-left: 1.25rem;
 }
-.prose ul { list-style: disc; }
-.prose ol { list-style: decimal; }
-.prose li { margin: 0.25em 0; }
-.prose li > ul { list-style: circle; margin-top: 0.25em; }
-.prose li > ol { list-style: lower-alpha; margin-top: 0.25em; }
+
+.prose ul {
+  list-style: disc;
+}
+
+.prose ol {
+  list-style: decimal;
+}
+
+.prose li {
+  margin: 0.25em 0;
+}
+
+.prose li>ul {
+  list-style: circle;
+  margin-top: 0.25em;
+}
+
+.prose li>ol {
+  list-style: lower-alpha;
+  margin-top: 0.25em;
+}
 
 /* Horizontal rule */
-.prose hr { border: 0; border-top: 1px solid rgba(167,139,250,0.18); margin: 2rem 0; }
+.prose hr {
+  border: 0;
+  border-top: 1px solid rgba(167, 139, 250, 0.18);
+  margin: 2rem 0;
+}
 
 /* Tables */
-.prose table { width: 100%; border-collapse: collapse; margin: 1.25rem 0; }
+.prose table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1.25rem 0;
+}
+
 .prose th,
-.prose td { border: 1px solid rgba(167,139,250,0.18); padding: 0.6rem 0.75rem; }
-.prose th { background: rgba(124,58,237,0.08); text-align: left; }
+.prose td {
+  border: 1px solid rgba(167, 139, 250, 0.18);
+  padding: 0.6rem 0.75rem;
+}
+
+.prose th {
+  background: rgba(124, 58, 237, 0.08);
+  text-align: left;
+}
 
 /* Images: always block-level with spacing so they don't sit inline with text */
 .prose img {
@@ -204,7 +279,7 @@ a:hover {
   height: auto;
   margin: 1.25rem auto;
   border-radius: 0.75rem;
-  border: 1px solid rgba(167,139,250,0.18);
+  border: 1px solid rgba(167, 139, 250, 0.18);
 }
 
 /* Iframes: responsive embeds for presentations, videos, etc. */
@@ -214,7 +289,7 @@ a:hover {
   max-width: 100%;
   margin: 2rem auto;
   border-radius: 0.75rem;
-  border: 1px solid rgba(167,139,250,0.18);
+  border: 1px solid rgba(167, 139, 250, 0.18);
   box-shadow: 0 10px 40px rgba(12, 10, 15, 0.4);
   background: rgba(18, 16, 23, 0.5);
 }
@@ -264,7 +339,8 @@ header[data-scrolled="true"] {
 
 /* Dark scrollbar theme across the site */
 html {
-  scrollbar-color: #18151c #0c0a0f; /* thumb track */
+  scrollbar-color: #18151c #0c0a0f;
+  /* thumb track */
   scrollbar-width: thin;
 }
 

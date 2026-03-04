@@ -15,7 +15,7 @@ export const metadata = {
 
 export default function JourneyPage() {
   return (
-    <div className="flex flex-col gap-24">
+    <div className="page-width section-spacing flex flex-col gap-24">
       <section className="radial-hero flex flex-col items-center justify-center text-center">
         <Reveal>
           <div className="space-y-8">

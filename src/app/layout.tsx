@@ -40,9 +40,7 @@ export default function RootLayout({
           <Suspense fallback={null}>
             <Navbar />
           </Suspense>
-          <main className="flex-1">
-            <div className="page-width section-spacing">{children}</div>
-          </main>
+          <main className="flex-1">{children}</main>
           <footer className="border-t border-[rgba(167,139,250,0.12)] bg-[#121017] py-10 text-sm text-[var(--muted)]">
             <div className="page-width flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
               <div className="space-y-2 text-[0.95rem]">

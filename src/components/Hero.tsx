@@ -1,54 +1,61 @@
 "use client";
 
 import Link from "next/link";
-
 import Reveal from "./Reveal";
 import DarkVeil from "./effects/DarkVeil";
 import ShinyText from "./ShinyText";
 
 export default function Hero() {
   return (
-    <section className="full-bleed hero-offset relative isolate flex min-h-[82vh] flex-col justify-center overflow-hidden bg-[var(--background)] px-6 pb-28 pt-28 sm:px-10 md:min-h-[90vh] md:px-20 lg:min-h-[95vh]">
+    <section className="full-bleed relative isolate flex min-h-[82vh] flex-col justify-center overflow-hidden bg-[var(--background)] px-6 pb-28 pt-28 sm:px-10 md:min-h-[90vh] md:px-20 lg:min-h-[95vh]">
+      {/* Bottom fade to background */}
       <div className="absolute bottom-0 left-0 right-0 h-[28rem] bg-gradient-to-b from-transparent via-[rgba(24,20,32,0.6)] to-[var(--background)]" aria-hidden />
+      {/* Top fade */}
       <div className="absolute top-0 left-0 right-0 h-32 bg-gradient-to-b from-[rgba(12,10,15,0.85)] to-transparent" aria-hidden />
 
+      {/* DarkVeil generative background */}
       <div className="pointer-events-none absolute inset-0">
         <DarkVeil fadeStart="75%" />
       </div>
 
-      <div className="relative z-10 mx-auto -mt-6 md:-mt-8 flex w-full max-w-5xl flex-col items-center gap-12 text-center">
+      <div className="relative z-10 mx-auto flex w-full max-w-5xl flex-col items-center gap-10 text-center">
         <Reveal>
           <div className="mx-auto flex max-w-3xl flex-col items-center gap-8 text-center">
-            <div className="space-y-7 text-balance">
-              <h1 className="text-4xl font-semibold leading-tight sm:text-5xl md:text-6xl">
-                SecureLearning
-              </h1>
-              <p className="text-xl font-medium text-[rgba(237,237,237,0.85)] sm:text-[1.35rem]">
-                <ShinyText speed={4}>
-                  Strengthening organizations through
-                  <span className="ml-2 bg-gradient-to-r from-[#7C3AED] via-[#9B6BFF] to-[#A78BFA] bg-clip-text text-transparent">
-                    cybersecurity awareness
-                  </span>
-                  .
+
+
+            <div className="flex flex-col items-center gap-5">
+              <h1 className="text-5xl font-semibold leading-[1.1] tracking-tight sm:text-6xl md:text-[4.5rem] text-white">
+                Make your people{" "}
+                <ShinyText className="inline-block bg-gradient-to-r from-[#7C3AED] via-[#9B6BFF] to-[#A78BFA] bg-clip-text text-transparent pb-1" speed={4}>
+                  unphishable
                 </ShinyText>
-              </p>
-              <p className="text-lg text-[rgba(237,237,237,0.72)] sm:text-lg">
-                Simulate real attacks, train smarter, and measure progress with SecureLearning.
-              </p>
+              </h1>
+
+              <div className="mx-auto max-w-2xl space-y-2">
+                <p className="text-xl font-medium leading-snug text-[rgba(255,255,255,0.9)] sm:text-[1.35rem]">
+                  Because generic awareness training doesn&apos;t change behavior.
+                </p>
+                <p className="text-base leading-relaxed text-[rgba(237,237,237,0.55)] sm:text-lg">
+                  SecureLearning simulates real attacks, trains by role, and
+                  measures what actually changes.
+                </p>
+              </div>
             </div>
-            <div className="flex flex-col gap-4 sm:flex-row">
-              <Link href="/journey" className="btn btn-primary">
-                Follow our Journey
+
+            {/* CTAs */}
+            <div className="mt-4 flex flex-col items-center justify-center gap-5 sm:flex-row">
+              <Link href="/coming-soon" className="btn btn-primary">
+                Request Early Access
               </Link>
-              <a
-                href="https://github.com/PEI-SecureLearning"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="btn btn-secondary"
-              >
-                View on GitHub
+              <a href="#how-it-works" className="btn btn-secondary">
+                See How It Works
               </a>
             </div>
+
+            {/* Social nudge */}
+            <p className="text-sm text-[var(--muted)] opacity-70">
+              Trusted by security-conscious teams
+            </p>
           </div>
         </Reveal>
       </div>

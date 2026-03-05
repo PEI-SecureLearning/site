@@ -84,11 +84,19 @@ export default function ProblemStatement() {
 
                 tl.fromTo(
                     cardEl,
-                    { y: 400, opacity: 0 },
+                    {
+                        y: 350,
+                        opacity: 0,
+                        rotateX: -15, // Bottom tilts forward
+                        scale: 0.95,
+                        transformPerspective: 1200,
+                    },
                     {
                         y: 0,
                         opacity: 1,
-                        duration: 0.16,
+                        rotateX: 0,
+                        scale: 1,
+                        duration: 0.22, // Slightly longer to let the 3D physics settle
                         ease: "power3.out",
                     },
                     startTime
@@ -192,14 +200,21 @@ export default function ProblemStatement() {
                                 background: "rgba(0, 0, 0, 0.2)", // Pure sheer black "icy lens"
                                 backdropFilter: "blur(32px)",
                                 WebkitBackdropFilter: "blur(32px)",
-                                borderTop: "1px solid transparent",
-                                borderImageSource: "linear-gradient(90deg, rgba(255,255,255,0.12) 0%, rgba(255,255,255,0.02) 50%, transparent 100%)",
-                                borderImageSlice: 1,
-                                boxShadow: "0 40px 100px -20px rgba(0,0,0,0.8), inset 0 1px 0 rgba(255,255,255,0.02)",
+                                boxShadow: "0 40px 100px -20px rgba(0,0,0,0.8)", // Base shadow only
                                 transformOrigin: "top center",
                             }}
                         >
-                            <p className="text-center text-lg font-medium leading-relaxed tracking-tight text-white/90 sm:text-xl md:text-2xl">
+                            {/* Gradient border overlay that respects border-radius */}
+                            <div
+                                className="absolute inset-0 rounded-2xl pointer-events-none"
+                                style={{
+                                    boxShadow: "inset 0 1px 0 rgba(255, 255, 255, 0.12)",
+                                    maskImage: "linear-gradient(90deg, black 0%, rgba(0,0,0,0.2) 50%, transparent 100%)",
+                                    WebkitMaskImage: "linear-gradient(90deg, black 0%, rgba(0,0,0,0.2) 50%, transparent 100%)",
+                                }}
+                            />
+
+                            <p className="relative z-10 text-center text-lg font-medium leading-relaxed tracking-tight text-white/90 sm:text-xl md:text-2xl">
                                 {text}
                             </p>
                         </div>

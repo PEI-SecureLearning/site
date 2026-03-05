@@ -9,9 +9,19 @@ gsap.registerPlugin(ScrollTrigger);
 /* ── Data ────────────────────────────────────────────── */
 
 const painPoints = [
-    "Generic awareness training doesn\u2019t change behavior.",
-    "Employees forget what they learned in two weeks.",
-    "Security teams have no way to measure real risk reduction.",
+    <>
+        Generic awareness training doesn&rsquo;t{" "}
+        <span className="text-[var(--accent-primary)]">change behavior</span>.
+    </>,
+    <>
+        Employees <span className="text-[var(--accent-primary)]">forget</span>{" "}
+        what they learned in two weeks.
+    </>,
+    <>
+        Security teams have no way to{" "}
+        <span className="text-[var(--accent-primary)]">measure</span> real risk
+        reduction.
+    </>,
 ];
 
 /* ── Constants ───────────────────────────────────────── */
@@ -67,9 +77,10 @@ export default function ProblemStatement() {
             );
 
             /* ── Phase 4–6: Cards fly up and stack ── */
+            // We start the first card very shortly after the quote attribution wipe finishes (which ends around 0.33, but we can overlap its tail end)
             painPoints.forEach((_, i) => {
                 const cardEl = `.pain-card-${i}`;
-                const startTime = 0.30 + i * 0.20;
+                const startTime = 0.18 + i * 0.16; // Tighter initial gap, tighter stagger
 
                 tl.fromTo(
                     cardEl,
@@ -166,29 +177,29 @@ export default function ProblemStatement() {
 
                 {/* Card stack area */}
                 <div
-                    className="relative w-full max-w-[780px]"
+                    className="relative w-full max-w-4xl"
                     style={{ height: "140px" }}
                 >
                     {painPoints.map((text, i) => (
                         <div
                             key={i}
-                            className={`pain-card-${i} absolute inset-x-0 rounded-xl px-8 py-7`}
+                            className={`pain-card-${i} absolute inset-x-0 rounded-2xl px-6 py-5 md:px-8 md:py-6 flex items-center justify-center`}
                             // eslint-disable-next-line
                             style={{
                                 top: `${i * STACK_OFFSET}px`,
                                 opacity: 0,
                                 zIndex: i + 1,
-                                background: "rgba(24, 21, 32, 0.92)",
-                                backdropFilter: "blur(16px)",
-                                WebkitBackdropFilter: "blur(16px)",
-                                border: "1px solid rgba(167,139,250,0.08)",
-                                borderTopColor: "rgba(167,139,250,0.2)",
-                                boxShadow:
-                                    "0 30px 80px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.04)",
+                                background: "rgba(0, 0, 0, 0.2)", // Pure sheer black "icy lens"
+                                backdropFilter: "blur(32px)",
+                                WebkitBackdropFilter: "blur(32px)",
+                                borderTop: "1px solid transparent",
+                                borderImageSource: "linear-gradient(90deg, rgba(255,255,255,0.12) 0%, rgba(255,255,255,0.02) 50%, transparent 100%)",
+                                borderImageSlice: 1,
+                                boxShadow: "0 40px 100px -20px rgba(0,0,0,0.8), inset 0 1px 0 rgba(255,255,255,0.02)",
                                 transformOrigin: "top center",
                             }}
                         >
-                            <p className="text-center text-xl font-semibold leading-snug tracking-tight text-white/90 sm:text-2xl">
+                            <p className="text-center text-lg font-medium leading-relaxed tracking-tight text-white/90 sm:text-xl md:text-2xl">
                                 {text}
                             </p>
                         </div>

@@ -5,9 +5,10 @@ import { useEffect, useRef, type ReactNode } from "react";
 interface RevealProps {
   children: ReactNode;
   className?: string;
+  delay?: number;
 }
 
-export default function Reveal({ children, className }: RevealProps) {
+export default function Reveal({ children, className, delay = 0 }: RevealProps) {
   const ref = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -36,7 +37,11 @@ export default function Reveal({ children, className }: RevealProps) {
   }, []);
 
   return (
-    <div ref={ref} className={className}>
+    <div
+      ref={ref}
+      className={className}
+      style={{ transitionDelay: `${delay}s` }}
+    >
       {children}
     </div>
   );

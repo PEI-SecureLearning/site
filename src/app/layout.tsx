@@ -16,7 +16,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "SecureLearning – Cybersecurity Awareness Platform",
+  title: "SecureLearning | Cybersecurity Awareness Platform",
   description:
     "Safe phishing simulations, just-in-time training, and measurable awareness improvement.",
   icons: {

@@ -339,6 +339,51 @@ header[data-scrolled="true"] {
   margin-right: -50vw;
 }
 
+@keyframes monolithFloat {
+  0%,
+  100% {
+    transform: translateY(0) rotateX(8deg) rotateY(var(--feature-browser-rotate-y));
+  }
+
+  50% {
+    transform: translateY(-8px) rotateX(9deg)
+      rotateY(calc(var(--feature-browser-rotate-y) + 1deg));
+  }
+}
+
+@keyframes instrumentFloat {
+  0%,
+  100% {
+    transform: translateY(0) rotateX(2deg) rotateY(var(--feature-card-rotate-y))
+      rotateZ(0deg);
+  }
+
+  50% {
+    transform: translateY(-5px) rotateX(3deg)
+      rotateY(calc(var(--feature-card-rotate-y) - 0.5deg)) rotateZ(-0.5deg);
+  }
+}
+
+.feature-monolith-float {
+  animation: monolithFloat 6s ease-in-out infinite;
+  transform-style: preserve-3d;
+  will-change: transform;
+}
+
+.feature-card-float {
+  animation: instrumentFloat 4s ease-in-out infinite;
+  animation-delay: -2s;
+  transform-style: preserve-3d;
+  will-change: transform;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .feature-monolith-float,
+  .feature-card-float {
+    animation: none;
+  }
+}
+
 /* Dark scrollbar theme across the site */
 html {
   scrollbar-color: #18151c #0c0a0f;

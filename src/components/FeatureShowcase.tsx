@@ -190,13 +190,6 @@ function BrowserMockup({
                     }}
                 />
                 <div
-                    className="pointer-events-none absolute inset-x-[14%] -bottom-10 -z-10 h-20 rounded-full blur-3xl"
-                    style={{
-                        background:
-                            "radial-gradient(circle at 50% 50%, rgba(7,5,12,0.88) 0%, rgba(7,5,12,0.58) 48%, transparent 82%)",
-                    }}
-                />
-                <div
                     className="relative overflow-hidden rounded-[24px] border border-[rgba(167,139,250,0.18)] bg-[#0e0b14]/85 backdrop-blur-2xl"
                     style={
                         {
@@ -204,7 +197,7 @@ function BrowserMockup({
                             background:
                                 "linear-gradient(180deg, rgba(20,16,30,0.96) 0%, rgba(10,8,16,0.94) 100%)",
                             boxShadow:
-                                "0 65px 120px rgba(0,0,0,0.76), 0 18px 40px rgba(124,58,237,0.12), inset 0 1px 0 rgba(255,255,255,0.16), inset 0 -1px 0 rgba(0,0,0,0.36), inset 0 -24px 60px rgba(0,0,0,0.22)",
+                                "0 24px 52px rgba(0,0,0,0.32), 0 10px 22px rgba(124,58,237,0.1), inset 0 1px 0 rgba(255,255,255,0.16), inset 0 -1px 0 rgba(0,0,0,0.36), inset 0 -24px 60px rgba(0,0,0,0.22)",
                             filter: "saturate(1.08) contrast(1.04)",
                         } as React.CSSProperties
                     }
@@ -272,6 +265,7 @@ function BrowserMockup({
 // Helper to provide refs to the map loop
 function FeatureBlock({ feature }: Readonly<{ feature: (typeof features)[0] }>) {
     const sceneRef = useRef<HTMLDivElement>(null);
+    const entrySentinelRef = useRef<HTMLDivElement>(null);
     const browserRef = useRef<HTMLDivElement>(null);
     const cardRef = useRef<HTMLDivElement>(null);
     const direction = feature.flip ? 1 : -1;
@@ -280,7 +274,7 @@ function FeatureBlock({ feature }: Readonly<{ feature: (typeof features)[0] }>) 
     const cardTransformOrigin = feature.flip ? "left center" : "right center";
 
     useEffect(() => {
-        if (!sceneRef.current || !browserRef.current || !cardRef.current) return;
+        if (!sceneRef.current || !entrySentinelRef.current || !browserRef.current || !cardRef.current) return;
 
         const ctx = gsap.context(() => {
             gsap.set(browserRef.current, {
@@ -296,8 +290,9 @@ function FeatureBlock({ feature }: Readonly<{ feature: (typeof features)[0] }>) 
 
             const tl = gsap.timeline({
                 scrollTrigger: {
-                    trigger: sceneRef.current,
-                    start: "top top",
+                    trigger: entrySentinelRef.current,
+                    start: "top bottom",
+                    endTrigger: sceneRef.current,
                     end: "bottom bottom",
                     scrub: 1.1,
                     invalidateOnRefresh: true,
@@ -307,51 +302,40 @@ function FeatureBlock({ feature }: Readonly<{ feature: (typeof features)[0] }>) 
             tl.fromTo(
                 browserRef.current,
                 {
-                    x: direction * 260,
-                    y: 140,
-                    z: -920,
-                    rotateY: direction * -38,
-                    rotateX: 26,
-                    rotateZ: direction * 8,
-                    scale: 0.68,
-                    autoAlpha: 0.24,
+                    x: direction * 410,
+                    y: 92,
+                    z: -1520,
+                    rotateX: 19,
+                    rotateZ: direction * 2.8,
+                    scale: 0.846,
+                    autoAlpha: 0.14,
                 },
                 {
-                    x: direction * 72,
-                    y: 14,
-                    z: -140,
-                    rotateY: direction * -18,
-                    rotateX: 13,
-                    rotateZ: direction * 2.5,
-                    scale: 0.9,
-                    autoAlpha: 1,
-                    ease: "power2.out",
-                    duration: 0.34,
-                },
-                0
-            )
-                .to(browserRef.current, {
-                    x: direction * 24,
-                    y: 0,
-                    z: 0,
-                    rotateY: direction * -12,
-                    rotateX: 8,
-                    rotateZ: direction * 0.6,
-                    scale: 0.98,
-                    ease: "power3.out",
-                    duration: 0.2,
-                })
-                .to(browserRef.current, {
                     x: direction * 18,
                     y: -4,
-                    rotateY: direction * -11.5,
+                    z: 0,
                     rotateX: 7.8,
                     rotateZ: direction * 0.25,
                     scale: 0.985,
-                    ease: "power1.out",
-                    duration: 0.08,
-                })
-                .to({}, { duration: 0.16 })
+                    autoAlpha: 1,
+                    ease: "none",
+                    duration: 0.52,
+                },
+                0
+            )
+                .fromTo(
+                    browserRef.current,
+                    {
+                        rotateY: direction * -74,
+                    },
+                    {
+                        rotateY: direction * -11.5,
+                        ease: "none",
+                        duration: 0.6,
+                    },
+                    0
+                )
+                .to({}, { duration: 0.04 }, 0.6)
                 .fromTo(
                     cardRef.current,
                     {
@@ -375,7 +359,8 @@ function FeatureBlock({ feature }: Readonly<{ feature: (typeof features)[0] }>) 
                         scale: 1,
                         ease: "power3.out",
                         duration: 0.22,
-                    }
+                    },
+                    0.64
                 )
                 .to({}, { duration: 0.1 });
         }, sceneRef);
@@ -388,7 +373,12 @@ function FeatureBlock({ feature }: Readonly<{ feature: (typeof features)[0] }>) 
             ref={sceneRef}
             className="relative h-[240vh] w-full"
         >
-            <div className="sticky top-0 h-screen w-full overflow-hidden">
+            <div
+                ref={entrySentinelRef}
+                className="pointer-events-none absolute left-0 right-0 top-[68vh] h-px"
+                aria-hidden
+            />
+            <div className="sticky top-0 h-screen w-full overflow-visible">
                 <div
                     className={`absolute inset-0 z-0 flex items-center px-4 pt-[5.75rem] md:px-10 md:pt-[6.75rem] lg:px-14 ${browserJustify}`}
                 >

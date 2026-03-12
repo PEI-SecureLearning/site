@@ -4,26 +4,46 @@ import { useEffect, useRef, useState } from "react";
 import Reveal from "./Reveal";
 import { gsap } from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
+import F1Construction from "./F1Construction";
+import F2Construction from "./F2Construction";
 
 gsap.registerPlugin(ScrollTrigger);
 
 /* ─── Feature data ─────────────────────────────────────────── */
 
-const features = [
+type Feature = {
+    id: "f1" | "f2";
+    badge: string;
+    headline: string;
+    subhead: string;
+    points: string[];
+    flip: boolean;
+};
+
+const features: Feature[] = [
     {
         id: "f1",
-        number: "01",
-        badge: "Threat Simulation",
-        headline: "Expose your vulnerabilities before the attackers do.",
-        body: "We don't send obvious, badly-spelled decoys. SecureLearning deploys hyper-realistic, credential-safe phishing campaigns that mirror tomorrow's actual threats. You see precisely who clicks, when they click, and where your actual risk lies. No guesswork. Just data.",
+        badge: "Phishing Simulations",
+        headline: "See who clicks before attackers do",
+        subhead:
+            "Launch realistic campaigns by group and track every interaction safely.",
+        points: [
+            "Recurring campaigns by role and department",
+            "Safe credential capture without sensitive storage",
+            "Measure susceptibility across teams and campaigns",
+        ],
         flip: false,
     },
     {
         id: "f2",
-        number: "02",
-        badge: "Targeted Training",
-        headline: "Stop wasting time on irrelevant videos.",
-        body: "Generic security training breeds resentment. We actively map employee behavior to risk profiles, assigning hyper-relevant, surgical 3-minute modules only to the individuals who actually need them. Less downtime, higher retention, stronger compliance.",
+        badge: "Targeted Training (LMS)",
+        headline: "Training that knows who you are",
+        subhead: "Role-based lessons and quizzes shaped by risk",
+        points: [
+            "Training paths by role and department",
+            "Short video lessons with quizzes",
+            "Assignments shaped by risk profile and past results",
+        ],
         flip: true,
     },
 ];
@@ -163,22 +183,30 @@ function BrowserMockup({
     children,
     flip,
     browserRef,
+    staticStyle,
+    wrapperClassName,
 }: Readonly<{
     children: React.ReactNode;
     flip: boolean;
-    browserRef: React.RefObject<HTMLDivElement | null>;
+    browserRef?: React.RefObject<HTMLDivElement | null>;
+    staticStyle?: React.CSSProperties;
+    wrapperClassName?: string;
 }>) {
+    const fallbackBrowserRef = useRef<HTMLDivElement>(null);
+    const resolvedBrowserRef = browserRef ?? fallbackBrowserRef;
+
     return (
         <div
-            className="mx-auto w-full max-w-[1040px] px-4 md:px-0 xl:max-w-[1160px]"
+            className={`mx-auto w-full max-w-[1040px] px-4 md:px-0 xl:max-w-[1160px] ${wrapperClassName ?? ""}`}
             style={{ perspective: "1200px" }}
         >
             <div
-                ref={browserRef}
+                ref={resolvedBrowserRef}
                 className="relative w-full"
                 style={{
                     transformStyle: "preserve-3d",
                     transformOrigin: flip ? "right center -300px" : "left center -300px",
+                    ...staticStyle,
                 }}
             >
                 <div
@@ -262,8 +290,146 @@ function BrowserMockup({
     );
 }
 
+function FeatureBrowserCanvas({ feature }: Readonly<{ feature: Feature }>) {
+    return (
+        <div className="relative h-[300px] w-full overflow-hidden bg-[#0A0A0A] md:h-[500px] lg:h-[700px]">
+            {feature.id === "f1" ? (
+                <F1Construction />
+            ) : (
+                <F2Construction />
+            )}
+        </div>
+    );
+}
+
+function FeatureCardCopy({ feature }: Readonly<{ feature: Feature }>) {
+    return (
+        <div className="relative flex w-full flex-col">
+            <div className="-mt-2 mb-5 flex items-center justify-center gap-4 text-center">
+                <div className="h-px w-10 bg-[var(--accent-primary)]/82" />
+                <span className="font-mono text-[0.8rem] font-medium uppercase tracking-[0.2em] text-[var(--accent-primary)]/98">
+                    {feature.badge}
+                </span>
+                <div className="h-px w-10 bg-[var(--accent-primary)]/82" />
+            </div>
+
+            <h3 className="mb-4 max-w-[16.5ch] text-[2.45rem] font-semibold leading-[0.98] tracking-[-0.05em] text-white sm:text-[2.9rem]">
+                {feature.id === "f1" ? (
+                    <>
+                        <span className="hidden sm:inline">
+                            See who clicks
+                            <br />
+                            before attackers do
+                        </span>
+                        <span className="sm:hidden">See who clicks before attackers do</span>
+                    </>
+                ) : (
+                    <>
+                        <span className="hidden sm:inline">
+                            Training that
+                            <br />
+                            knows who you are
+                        </span>
+                        <span className="sm:hidden">Training that knows who you are</span>
+                    </>
+                )}
+            </h3>
+
+            <p className="max-w-[36ch] text-[1rem] leading-[1.7] text-white/64 md:text-[1.03rem]">
+                {feature.subhead}
+            </p>
+
+            <div className="mt-7 flex flex-col gap-4">
+                {feature.points.map((point) => (
+                    <div key={point} className="flex items-start gap-3">
+                        <span className="mt-[0.58rem] h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--accent-primary)] shadow-[0_0_14px_rgba(124,58,237,0.45)]" />
+                        <p className="text-[0.96rem] font-medium leading-[1.45] text-white/86 md:whitespace-nowrap md:text-[1rem]">
+                            {point}
+                        </p>
+                    </div>
+                ))}
+            </div>
+        </div>
+    );
+}
+
+function FeatureCardPanel({ feature }: Readonly<{ feature: Feature }>) {
+    return (
+        <div
+            className="relative flex flex-col items-start overflow-hidden rounded-2xl p-8 md:p-10"
+            style={
+                {
+                    "--feature-card-rotate-y": `${feature.flip ? -11 : 11}deg`,
+                    background: "rgba(0, 0, 0, 0.2)",
+                    backdropFilter: "blur(32px)",
+                    WebkitBackdropFilter: "blur(32px)",
+                    boxShadow: "0 40px 100px -20px rgba(0,0,0,0.8)",
+                    transformOrigin: "top center",
+                    transformStyle: "preserve-3d",
+                } as React.CSSProperties
+            }
+        >
+            <div
+                className="absolute inset-0 rounded-2xl pointer-events-none"
+                style={{
+                    boxShadow: "inset 0 1px 0 rgba(255, 255, 255, 0.12)",
+                    maskImage: "linear-gradient(90deg, black 0%, rgba(0,0,0,0.2) 50%, transparent 100%)",
+                    WebkitMaskImage:
+                        "linear-gradient(90deg, black 0%, rgba(0,0,0,0.2) 50%, transparent 100%)",
+                    borderRadius: "1rem",
+                }}
+            />
+            <div
+                className="pointer-events-none absolute inset-0 rounded-2xl"
+                style={{
+                    background:
+                        "linear-gradient(180deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.02) 45%, transparent 100%)",
+                }}
+            />
+
+            <FeatureCardCopy feature={feature} />
+        </div>
+    );
+}
+
+function MobileFeatureBlock({ feature }: Readonly<{ feature: Feature }>) {
+    const mobileBrowserTransform = "translate3d(0, 0, 0) scale(1)";
+
+    return (
+        <div className="md:hidden px-4 py-12">
+            <div className="mx-auto flex w-full max-w-[29rem] flex-col gap-6">
+                <Reveal>
+                    <div className="w-[calc(100%+2rem)] -mx-4">
+                        <BrowserMockup
+                            flip={feature.flip}
+                            wrapperClassName="max-w-none px-0"
+                            staticStyle={{ transform: mobileBrowserTransform }}
+                        >
+                            <FeatureBrowserCanvas feature={feature} />
+                        </BrowserMockup>
+                    </div>
+                </Reveal>
+
+                <Reveal>
+                    <div className="relative">
+                        <div
+                            className="mx-auto w-full"
+                            style={{
+                                perspective: "1200px",
+                                filter: "drop-shadow(0 18px 30px rgba(0,0,0,0.42))",
+                            }}
+                        >
+                            <FeatureCardPanel feature={feature} />
+                        </div>
+                    </div>
+                </Reveal>
+            </div>
+        </div>
+    );
+}
+
 // Helper to provide refs to the map loop
-function FeatureBlock({ feature }: Readonly<{ feature: (typeof features)[0] }>) {
+function FeatureBlock({ feature }: Readonly<{ feature: Feature }>) {
     const sceneRef = useRef<HTMLDivElement>(null);
     const entrySentinelRef = useRef<HTMLDivElement>(null);
     const browserRef = useRef<HTMLDivElement>(null);
@@ -366,7 +532,7 @@ function FeatureBlock({ feature }: Readonly<{ feature: (typeof features)[0] }>) 
         }, sceneRef);
 
         return () => ctx.revert();
-    }, [feature.flip]);
+    }, [cardTransformOrigin, direction, feature.flip]);
 
     return (
         <div
@@ -383,22 +549,7 @@ function FeatureBlock({ feature }: Readonly<{ feature: (typeof features)[0] }>) 
                     className={`absolute inset-0 z-0 flex items-center px-4 pt-[5.75rem] md:px-10 md:pt-[6.75rem] lg:px-14 ${browserJustify}`}
                 >
                     <BrowserMockup flip={feature.flip} browserRef={browserRef}>
-                        {/* Abstract UI Placeholder */}
-                        <div className="relative h-[300px] w-full overflow-hidden bg-gradient-to-b from-[#130f1e] to-[#0a080f] md:h-[500px] lg:h-[700px]">
-                            <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.02)_1px,transparent_1px)] bg-[size:48px_48px]" />
-                            <div className={`absolute top-1/3 ${feature.flip ? 'left-1/3' : 'right-1/3'} -translate-x-1/2 -translate-y-1/2 w-64 h-64 rounded-full bg-[var(--accent-primary)]/10 blur-[100px]`} />
-                            {/* Sleek skeleton UI lines */}
-                            <div className="absolute inset-x-6 top-6 bottom-6 flex flex-col gap-4 rounded-xl border border-white/5 bg-white/[0.01] p-4 backdrop-blur-sm md:inset-x-12 md:top-12 md:bottom-12 md:gap-6 md:p-8">
-                                <div className="w-1/3 h-4 md:h-6 rounded-md bg-white/5" />
-                                <div className="w-full h-px bg-white/5" />
-                                <div className="flex gap-4">
-                                    <div className="w-1/4 h-24 md:h-32 rounded-lg bg-white/5" />
-                                    <div className="w-1/4 h-24 md:h-32 rounded-lg bg-[var(--accent-primary)]/10 border border-[var(--accent-primary)]/20" />
-                                    <div className="w-2/4 h-24 md:h-32 rounded-lg bg-white/5" />
-                                </div>
-                                <div className="w-full flex-1 rounded-lg bg-white/5 mt-4" />
-                            </div>
-                        </div>
+                        <FeatureBrowserCanvas feature={feature} />
                     </BrowserMockup>
                 </div>
 
@@ -407,63 +558,14 @@ function FeatureBlock({ feature }: Readonly<{ feature: (typeof features)[0] }>) 
                 >
                     <div
                         ref={cardRef}
-                        className="pointer-events-auto w-[88%] max-w-[400px] md:max-w-[440px] lg:max-w-[470px]"
+                        className={`pointer-events-auto w-[88%] ${feature.id === "f1" ? "max-w-[440px] md:max-w-[500px] lg:max-w-[540px]" : "max-w-[400px] md:max-w-[440px] lg:max-w-[470px]"}`}
                         style={{
                             perspective: "1500px",
                             zIndex: 50,
                             filter: `drop-shadow(${direction * 20}px 20px 40px rgba(0,0,0,0.6))`,
                         }}
                     >
-                        <div
-                            className="relative flex flex-col items-start overflow-hidden rounded-2xl p-8 md:p-10"
-                            style={
-                                {
-                                    "--feature-card-rotate-y": `${feature.flip ? -11 : 11}deg`,
-                                    background: "rgba(0, 0, 0, 0.2)",
-                                    backdropFilter: "blur(32px)",
-                                    WebkitBackdropFilter: "blur(32px)",
-                                    boxShadow: "0 40px 100px -20px rgba(0,0,0,0.8)",
-                                    transformOrigin: "top center",
-                                    transformStyle: "preserve-3d",
-                                } as React.CSSProperties
-                            }
-                        >
-                            {/* Inner border gradient */}
-                            <div
-                                className="absolute inset-0 rounded-2xl pointer-events-none"
-                                style={{
-                                    boxShadow: "inset 0 1px 0 rgba(255, 255, 255, 0.12)",
-                                    maskImage: "linear-gradient(90deg, black 0%, rgba(0,0,0,0.2) 50%, transparent 100%)",
-                                    WebkitMaskImage: "linear-gradient(90deg, black 0%, rgba(0,0,0,0.2) 50%, transparent 100%)",
-                                    borderRadius: "1rem", // Force perfectly rounded borders even under WebKit mask composite
-                                }}
-                            />
-                            <div
-                                className="pointer-events-none absolute inset-0 rounded-2xl"
-                                style={{
-                                    background:
-                                        "linear-gradient(180deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.02) 45%, transparent 100%)",
-                                }}
-                            />
-
-                            {/* Chapter Marker */}
-                            <div className="mb-6 flex items-center gap-4 relative">
-                                <div className="h-px w-8 bg-[var(--accent-primary)] opacity-80" />
-                                <span className="font-mono text-[0.65rem] font-medium uppercase tracking-[0.2em] text-[var(--accent-primary)]">
-                                    {feature.number} — {feature.badge}
-                                </span>
-                            </div>
-
-                            {/* Headline */}
-                            <h3 className="mb-4 text-3xl font-semibold leading-[1.15] tracking-tight text-white sm:text-4xl relative">
-                                {feature.headline}
-                            </h3>
-
-                            {/* Body */}
-                            <p className="text-base md:text-lg leading-relaxed text-[rgba(237,237,237,0.65)] relative">
-                                {feature.body}
-                            </p>
-                        </div>
+                        <FeatureCardPanel feature={feature} />
                     </div>
                 </div>
             </div>
@@ -480,7 +582,12 @@ export default function FeatureShowcase() {
                 {/* Features 1 & 2 — cinematic scrollytelling layout */}
                 <div className="flex flex-col">
                     {features.map((feature) => (
-                        <FeatureBlock key={feature.id} feature={feature} />
+                        <div key={feature.id}>
+                            <div className="hidden md:block">
+                                <FeatureBlock feature={feature} />
+                            </div>
+                            <MobileFeatureBlock feature={feature} />
+                        </div>
                     ))}
 
                     {/* Feature 3 — flat, centered, animated diagram */}

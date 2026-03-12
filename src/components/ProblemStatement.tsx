@@ -171,7 +171,7 @@ export default function ProblemStatement() {
 
                     {/* Attribution — center-out soft wipe */}
                     <p
-                        className="quote-attribution mt-5 text-xs font-medium uppercase tracking-[0.25em] text-white/40"
+                        className="quote-attribution mt-4 text-xs font-medium uppercase tracking-[0.25em] text-white/40"
                         style={{
                             fontFamily: "var(--font-geist-mono), monospace",
                             "--wipe": 0,

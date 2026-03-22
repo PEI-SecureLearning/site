@@ -12,6 +12,8 @@
   /* Hero “unphishable”, F3 emphasis, anywhere we mean “brand accent gradient” */
   --gradient-accent: linear-gradient(90deg, #7c3aed 0%, #9b6bff 50%, #a78bfa 100%);
   --glow-primary: 0 0 45px rgba(124, 58, 237, 0.45);
+  /* F3 reading pane — scales subject + sender + body together (1 = current design baseline) */
+  --f3-message-scale: 1.12;
 }
 
 @theme inline {
@@ -147,6 +149,11 @@ a:hover {
   transform: translateY(0);
 }
 
+/* F3 — proportional “zoom” for message copy; knob: --f3-message-scale on :root */
+.f3-message-scale-root {
+  font-size: calc(1rem * var(--f3-message-scale, 1));
+}
+
 /* F3 phishing email — hues only from :root (no ad-hoc hex / rgb) */
 .f3-divider {
   border-color: color-mix(in srgb, var(--foreground) 10%, transparent);
@@ -167,8 +174,17 @@ a:hover {
 }
 
 .f3-avatar-placeholder {
-  background-color: color-mix(in srgb, var(--foreground) 4%, transparent);
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--foreground) 8%, transparent);
+  background-color: color-mix(in srgb, var(--foreground) 2.8%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--foreground) 5.5%, transparent);
+}
+
+/* F3 message — subject is the clear focal plane */
+.f3-email-subject {
+  color: #fff;
+  font-weight: 800;
+  letter-spacing: -0.036em;
+  text-shadow: 0 0 56px color-mix(in srgb, var(--accent-secondary) 22%, transparent),
+    0 0 1px color-mix(in srgb, var(--foreground) 35%, transparent);
 }
 
 .f3-mail-icon-btn {
@@ -201,24 +217,44 @@ a:hover {
     0 0 0 4px color-mix(in srgb, var(--foreground) 22%, transparent);
 }
 
-/* F3 CTA — neutral enterprise control (no purple accent) */
+/* F3 CTA — neutral fill; outer glow uses lighter accent (--accent-secondary) */
 .f3-email-cta {
-  background: color-mix(in srgb, var(--surface) 86%, var(--background));
-  border: 1px solid color-mix(in srgb, var(--foreground) 14%, transparent);
-  color: color-mix(in srgb, var(--foreground) 90%, transparent);
-  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--foreground) 5%, transparent);
-  transition: border-color 0.18s ease, background-color 0.18s ease, color 0.18s ease;
+  background: color-mix(in srgb, var(--surface) 88%, var(--background));
+  border: 1px solid color-mix(in srgb, var(--foreground) 18%, transparent);
+  color: color-mix(in srgb, var(--foreground) 92%, transparent);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--foreground) 6%, transparent),
+    0 1px 2px color-mix(in srgb, var(--accent-secondary) 12%, transparent),
+    0 0 28px -6px color-mix(in srgb, var(--accent-secondary) 32%, transparent),
+    0 10px 36px -14px color-mix(in srgb, var(--accent-secondary) 22%, transparent);
+  transition:
+    border-color 0.2s ease,
+    background-color 0.2s ease,
+    color 0.2s ease,
+    box-shadow 0.2s ease,
+    transform 0.2s ease;
 }
 
 .f3-email-cta:hover {
-  border-color: color-mix(in srgb, var(--foreground) 22%, transparent);
-  background: color-mix(in srgb, var(--surface) 94%, var(--background));
+  border-color: color-mix(in srgb, var(--accent-secondary) 32%, var(--foreground));
+  background: color-mix(in srgb, var(--surface) 96%, var(--background));
   color: var(--foreground);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--foreground) 8%, transparent),
+    0 2px 6px color-mix(in srgb, var(--accent-secondary) 18%, transparent),
+    0 0 36px -4px color-mix(in srgb, var(--accent-secondary) 42%, transparent),
+    0 14px 44px -12px color-mix(in srgb, var(--accent-secondary) 28%, transparent);
+  transform: translateY(-1px);
 }
 
 .f3-email-cta:active {
-  border-color: color-mix(in srgb, var(--foreground) 18%, transparent);
-  background: color-mix(in srgb, var(--surface) 88%, var(--background));
+  border-color: color-mix(in srgb, var(--foreground) 24%, transparent);
+  background: color-mix(in srgb, var(--surface) 90%, var(--background));
+  transform: translateY(0);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--foreground) 5%, transparent),
+    0 1px 2px color-mix(in srgb, var(--accent-secondary) 10%, transparent),
+    0 0 20px -8px color-mix(in srgb, var(--accent-secondary) 25%, transparent);
 }
 
 .tag {

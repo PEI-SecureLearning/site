@@ -9,7 +9,8 @@
   --surface: #18151c;
   --surface-subtle: #131019;
   --border: rgba(167, 139, 250, 0.18);
-  --gradient-accent: linear-gradient(90deg, #7c3aed 0%, #9333ea 100%);
+  /* Hero “unphishable”, F3 emphasis, anywhere we mean “brand accent gradient” */
+  --gradient-accent: linear-gradient(90deg, #7c3aed 0%, #9b6bff 50%, #a78bfa 100%);
   --glow-primary: 0 0 45px rgba(124, 58, 237, 0.45);
 }
 
@@ -144,6 +145,80 @@ a:hover {
 .fade-up.is-visible {
   opacity: 1;
   transform: translateY(0);
+}
+
+/* F3 phishing email — hues only from :root (no ad-hoc hex / rgb) */
+.f3-divider {
+  border-color: color-mix(in srgb, var(--foreground) 10%, transparent);
+}
+
+.f3-mail-search-field {
+  border-color: color-mix(in srgb, var(--foreground) 6%, transparent);
+  background-color: color-mix(in srgb, var(--foreground) 2.5%, transparent);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--foreground) 4%, transparent);
+}
+
+.f3-mail-search-icon {
+  color: color-mix(in srgb, var(--foreground) 22%, transparent);
+}
+
+.f3-mail-search-placeholder {
+  color: color-mix(in srgb, var(--foreground) 26%, transparent);
+}
+
+.f3-avatar-placeholder {
+  background-color: color-mix(in srgb, var(--foreground) 4%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--foreground) 8%, transparent);
+}
+
+.f3-mail-icon-btn {
+  display: flex;
+  height: 2.25rem;
+  width: 2.25rem;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.5rem;
+  color: color-mix(in srgb, var(--foreground) 44%, transparent);
+  transition: color 150ms ease, background-color 150ms ease;
+}
+
+.f3-mail-icon-btn:hover {
+  background-color: color-mix(in srgb, var(--foreground) 5.5%, transparent);
+  color: color-mix(in srgb, var(--foreground) 78%, transparent);
+}
+
+.f3-mail-icon-btn:active {
+  background-color: color-mix(in srgb, var(--foreground) 4%, transparent);
+}
+
+.f3-mail-icon-btn:focus {
+  outline: none;
+}
+
+.f3-mail-icon-btn:focus-visible {
+  box-shadow: 0 0 0 2px var(--background),
+    0 0 0 4px color-mix(in srgb, var(--foreground) 22%, transparent);
+}
+
+/* F3 CTA — neutral enterprise control (no purple accent) */
+.f3-email-cta {
+  background: color-mix(in srgb, var(--surface) 86%, var(--background));
+  border: 1px solid color-mix(in srgb, var(--foreground) 14%, transparent);
+  color: color-mix(in srgb, var(--foreground) 90%, transparent);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--foreground) 5%, transparent);
+  transition: border-color 0.18s ease, background-color 0.18s ease, color 0.18s ease;
+}
+
+.f3-email-cta:hover {
+  border-color: color-mix(in srgb, var(--foreground) 22%, transparent);
+  background: color-mix(in srgb, var(--surface) 94%, var(--background));
+  color: var(--foreground);
+}
+
+.f3-email-cta:active {
+  border-color: color-mix(in srgb, var(--foreground) 18%, transparent);
+  background: color-mix(in srgb, var(--surface) 88%, var(--background));
 }
 
 .tag {

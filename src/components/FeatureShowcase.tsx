@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import Reveal from "./Reveal";
 import { gsap } from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import F1Construction from "./F1Construction";
 import F2Construction from "./F2Construction";
+import F3PhishingEmail from "./F3PhishingEmail";
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -47,135 +48,6 @@ const features: Feature[] = [
         flip: true,
     },
 ];
-
-/* ─── Animated flow diagram for F3 ─────────────────────────── */
-
-const FLOW_NODES = [
-    { icon: "📧", label: "Phish clicked" },
-    { icon: "🎣", label: "Caught" },
-    { icon: "💬", label: "Inline feedback" },
-    { icon: "📚", label: "Training assigned" },
-    { icon: "✅", label: "Exam passed" },
-    { icon: "🔒", label: "Complete" },
-];
-
-function RemediationDiagram() {
-    const [activeIndex, setActiveIndex] = useState(-1);
-    const [running, setRunning] = useState(false);
-    const sectionRef = useRef<HTMLDivElement | null>(null);
-    const timerRef = useRef<NodeJS.Timeout | null>(null);
-
-    const startSequence = () => {
-        setActiveIndex(-1);
-        setRunning(true);
-        let i = 0;
-        const tick = () => {
-            setActiveIndex(i);
-            i++;
-            if (i < FLOW_NODES.length) {
-                timerRef.current = setTimeout(tick, 450);
-            } else {
-                // Pause then restart
-                timerRef.current = setTimeout(() => {
-                    setActiveIndex(-1);
-                    timerRef.current = setTimeout(startSequence, 600);
-                }, 2400);
-            }
-        };
-        timerRef.current = setTimeout(tick, 300);
-    };
-
-    useEffect(() => {
-        const el = sectionRef.current;
-        if (!el) return;
-        const observer = new IntersectionObserver(
-            ([entry]) => {
-                if (entry.isIntersecting && !running) {
-                    startSequence();
-                }
-            },
-            { threshold: 0.4 }
-        );
-        observer.observe(el);
-        return () => {
-            observer.disconnect();
-            if (timerRef.current) clearTimeout(timerRef.current);
-        };
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
-
-    return (
-        <div
-            ref={sectionRef}
-            className="surface mx-auto w-full max-w-2xl rounded-2xl p-8 md:p-10"
-        >
-            <div className="flex flex-wrap items-center justify-center gap-0">
-                {FLOW_NODES.map((node, idx) => (
-                    <div key={node.label} className="flex items-center">
-                        {/* Node */}
-                        <div
-                            className="flex flex-col items-center gap-2 transition-all duration-300"
-                            style={{ minWidth: "80px" }}
-                        >
-                            <div
-                                className="flex h-12 w-12 items-center justify-center rounded-xl border text-xl transition-all duration-300"
-                                style={{
-                                    borderColor:
-                                        idx <= activeIndex
-                                            ? "rgba(124,58,237,0.8)"
-                                            : "rgba(167,139,250,0.15)",
-                                    background:
-                                        idx <= activeIndex
-                                            ? "rgba(124,58,237,0.18)"
-                                            : "rgba(18,16,23,0.6)",
-                                    boxShadow:
-                                        idx === activeIndex
-                                            ? "0 0 18px rgba(124,58,237,0.55)"
-                                            : "none",
-                                }}
-                            >
-                                {node.icon}
-                            </div>
-                            <span
-                                className="text-center text-[0.72rem] font-medium leading-tight transition-colors duration-300"
-                                style={{
-                                    color:
-                                        idx <= activeIndex
-                                            ? "rgba(237,237,237,0.9)"
-                                            : "rgba(237,237,237,0.35)",
-                                }}
-                            >
-                                {node.label}
-                            </span>
-                        </div>
-
-                        {/* Connector line between nodes */}
-                        {idx < FLOW_NODES.length - 1 && (
-                            <div className="relative mx-1 h-px" style={{ width: "32px" }}>
-                                <div
-                                    className="absolute inset-0 origin-left transition-all duration-300"
-                                    style={{
-                                        background:
-                                            "linear-gradient(90deg, #7C3AED 0%, #A78BFA 100%)",
-                                        transform:
-                                            idx < activeIndex ? "scaleX(1)" : "scaleX(0)",
-                                        transitionDelay: `${idx * 50}ms`,
-                                    }}
-                                />
-                                <div
-                                    className="absolute inset-0"
-                                    style={{ background: "rgba(167,139,250,0.12)" }}
-                                />
-                            </div>
-                        )}
-                    </div>
-                ))}
-            </div>
-
-
-        </div>
-    );
-}
 
 /* ─── Browser mockup wrapper ────────────────────────────────── */
 
@@ -589,37 +461,9 @@ export default function FeatureShowcase() {
                             <MobileFeatureBlock feature={feature} />
                         </div>
                     ))}
-
-                    {/* Feature 3 — flat, centered, animated diagram */}
-                    <Reveal>
-                        <div className="flex flex-col items-center gap-10 text-center">
-                            <div className="flex flex-col items-center gap-5 max-w-xl">
-                                <span className="tag">Just-in-Time Remediation</span>
-                                <h3 className="text-2xl font-bold leading-snug tracking-tight sm:text-3xl">
-                                    Teach at the moment of failure.
-                                </h3>
-                                <p className="text-base leading-relaxed text-[rgba(237,237,237,0.65)]">
-                                    The second someone falls for a simulated phish, they see
-                                    exactly what happened and why — then they complete a short
-                                    remediation module before returning to their workflow.
-                                </p>
-                                <div className="flex flex-wrap justify-center gap-2">
-                                    {["Inline feedback", "Immediate training trigger", "Exam-gated completion"].map(
-                                        (pill) => (
-                                            <span key={pill} className="tag text-xs">
-                                                {pill}
-                                            </span>
-                                        )
-                                    )}
-                                </div>
-                            </div>
-                            <div className="w-full">
-                                <RemediationDiagram />
-                            </div>
-                        </div>
-                    </Reveal>
                 </div>
             </div>
+            <F3PhishingEmail />
         </section>
     );
 }

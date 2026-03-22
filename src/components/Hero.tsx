@@ -26,7 +26,7 @@ export default function Hero() {
             <div className="space-y-7">
               <h1 className="text-5xl font-semibold leading-[1.1] tracking-tight sm:text-6xl md:text-[4.5rem] text-white">
                 Make your people{" "}
-                <ShinyText className="inline-block bg-gradient-to-r from-[#7C3AED] via-[#9B6BFF] to-[#A78BFA] bg-clip-text text-transparent pb-1" speed={4}>
+                <ShinyText className="inline-block bg-[image:var(--gradient-accent)] bg-clip-text text-transparent pb-1" speed={4}>
                   unphishable
                 </ShinyText>
               </h1>

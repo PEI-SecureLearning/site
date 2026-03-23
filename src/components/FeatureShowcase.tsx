@@ -6,7 +6,7 @@ import { gsap } from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import F1Construction from "./F1Construction";
 import F2Construction from "./F2Construction";
-import F3PhishingEmail from "./F3PhishingEmail";
+import F3StateOneScene from "./F3StateOneScene";
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -463,7 +463,7 @@ export default function FeatureShowcase() {
                     ))}
                 </div>
             </div>
-            <F3PhishingEmail />
+            <F3StateOneScene />
         </section>
     );
 }

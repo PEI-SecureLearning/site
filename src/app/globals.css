@@ -273,6 +273,46 @@ a:hover {
   filter: brightness(1);
 }
 
+/* State 2: one continuous depth move — mail recedes in Z, copy advances (GSAP sets Z on children). */
+.f3-sequence-frame[data-phase="consequence"] {
+  perspective: 1800px;
+  perspective-origin: 50% 44%;
+  transform-style: preserve-3d;
+}
+
+.f3-mail-stage {
+  transform-style: preserve-3d;
+  transform-origin: 50% 45%;
+  backface-visibility: hidden;
+}
+
+.f3-consequence-layer {
+  transform-style: preserve-3d;
+}
+
+.f3-consequence-copy-3d {
+  transform-style: preserve-3d;
+  transform-origin: 50% 55%;
+}
+
+/* F3 State 2 — dims the whole stage (GSAP opacity). Mail layer avoids brightness() so edges don’t mismatch. */
+.f3-consequence-backdrop {
+  pointer-events: auto;
+  opacity: 0;
+  background:
+    radial-gradient(
+      ellipse 100% 88% at 50% 42%,
+      color-mix(in srgb, black 42%, var(--background)) 0%,
+      transparent 72%
+    ),
+    linear-gradient(
+      180deg,
+      transparent 0%,
+      color-mix(in srgb, black 35%, var(--background)) 100%
+    );
+  backdrop-filter: blur(2px);
+}
+
 /* Elastic nudge lives here so takeover scale/transform on the outer frame is never overridden */
 .f3-elastic-layer {
   position: relative;

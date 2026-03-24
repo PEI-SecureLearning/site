@@ -66,8 +66,8 @@ export default function F3StateOneScene({
         ? "relative w-full"
         : `relative w-full ${tallRunwayClass}`;
     const stageLayoutClass = hasReleased
-        ? "relative flex min-h-screen w-full items-center overflow-visible pt-10 md:pt-12"
-        : "sticky top-0 flex h-screen w-full items-center overflow-visible pt-10 md:pt-12";
+        ? "relative flex min-h-screen w-full flex-col items-stretch overflow-visible pt-10 md:pt-12"
+        : "sticky top-0 flex h-screen w-full flex-col items-stretch overflow-visible pt-10 md:pt-12";
     const releasedSceneStyle =
         hasReleased && releasedSceneHeight != null
             ? { height: `${releasedSceneHeight}px` }
@@ -79,13 +79,18 @@ export default function F3StateOneScene({
 
     return (
         <div ref={sceneRef} className={sceneLayoutClass} style={releasedSceneStyle}>
-            <div className={stageLayoutClass} style={releasedStageStyle}>
-                <F3PhishingEmail
-                    isSceneActive={isSceneActive}
-                    hasReleased={hasReleased}
-                    onSequenceRelease={handleSequenceRelease}
-                    debugOverrides={debugOverrides}
-                />
+            <div
+                className={`${stageLayoutClass} bg-[var(--background)]`}
+                style={releasedStageStyle}
+            >
+                <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+                    <F3PhishingEmail
+                        isSceneActive={isSceneActive}
+                        hasReleased={hasReleased}
+                        onSequenceRelease={handleSequenceRelease}
+                        debugOverrides={debugOverrides}
+                    />
+                </div>
             </div>
         </div>
     );

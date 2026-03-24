@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState, type AnimationEvent } from "react";
 import { createPortal } from "react-dom";
+import { gsap } from "gsap";
 import { F3GhostInboxMobileStrip, F3GhostInboxSidebar } from "./F3GhostInbox";
 import F3NudgeArrow from "./F3NudgeArrow";
 
@@ -9,7 +10,6 @@ export type F3PhishingEmailProps = Readonly<{
     isSceneActive?: boolean;
     hasReleased?: boolean;
     onSequenceRelease?: () => void;
-    /** Wired in phase 2 when the consequence beat exists. */
     onReviewActivity?: () => void;
     debugOverrides?: Partial<{
         manualMode: boolean;
@@ -29,7 +29,13 @@ export type F3PhishingEmailProps = Readonly<{
     }>;
 }>;
 
-type F3Phase = "idle" | "entering" | "composing" | "ready" | "clicked";
+type F3Phase =
+    | "idle"
+    | "entering"
+    | "composing"
+    | "ready"
+    | "consequence"
+    | "sequenceComplete";
 type F3DebugStepKey = Exclude<
     NonNullable<F3PhishingEmailProps["debugOverrides"]> extends infer T
         ? T extends object
@@ -73,6 +79,18 @@ const ELASTIC_NUDGE_DURATION_MS = 840;
 
 /** Peak opacity for bottom wash — keep barely perceptible so the arrow stays the hero */
 const ELASTIC_OVERSCROLL_GLOW_PEAK = 0.106;
+
+const CONSEQUENCE_HEADLINE = "You clicked. That's all it takes.";
+/** Two beats — second line animates only after the first completes. */
+const CONSEQUENCE_HEADLINE_LINE_A = "You clicked.";
+const CONSEQUENCE_HEADLINE_LINE_B = "That's all it takes.";
+const CONSEQUENCE_SUBLINE = "One rushed decision can become an incident.";
+const CONSEQUENCE_CTA_LABEL = "What now?";
+
+/** Auto-advance if “What now?” is untouched (storyboard: ~1.0–1.5s after it’s available). */
+const CONSEQUENCE_AUTO_ADVANCE_MS = 1850;
+
+const CONSEQUENCE_EXIT_FADE_MS = 480;
 
 function usePrefersReducedMotion() {
     const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
@@ -303,6 +321,8 @@ export default function F3PhishingEmail({
     const touchNudgedThisGestureRef = useRef(false);
     const nudgeCooldownRef = useRef(0);
     const scheduledTimeoutsRef = useRef<number[]>([]);
+    /** Full-viewport mail surface — transform this (not inner elastic) so State 2 never reads as a “card in a box”. */
+    const mailStageRef = useRef<HTMLDivElement>(null);
     const elasticLayerRef = useRef<HTMLDivElement>(null);
     const elasticGlowRef = useRef<HTMLDivElement>(null);
     const elasticAnimRef = useRef<Animation | null>(null);
@@ -311,6 +331,15 @@ export default function F3PhishingEmail({
     const wheelNudgedThisGestureRef = useRef(false);
     const wheelGestureIdleTimerRef = useRef<number | null>(null);
     const lastWheelNudgeAtRef = useRef(0);
+    const consequenceBackdropRef = useRef<HTMLDivElement>(null);
+    const consequenceCopyRef = useRef<HTMLDivElement>(null);
+    const consequenceHeadlineLineARef = useRef<HTMLSpanElement>(null);
+    const consequenceHeadlineLineBRef = useRef<HTMLSpanElement>(null);
+    const consequenceSubRef = useRef<HTMLParagraphElement>(null);
+    const whatNowButtonRef = useRef<HTMLButtonElement>(null);
+    const consequenceEnterTimelineRef = useRef<ReturnType<typeof gsap.timeline> | null>(null);
+    const consequenceAutoAdvanceRef = useRef<number | null>(null);
+    const exitConsequenceLockedRef = useRef(false);
 
     const [phase, setPhase] = useState<F3Phase>("idle");
     const [takeoverVisible, setTakeoverVisible] = useState(false);
@@ -327,6 +356,8 @@ export default function F3PhishingEmail({
     const [breatheCta, setBreatheCta] = useState(false);
     const [overscrollGlowPortalReady, setOverscrollGlowPortalReady] = useState(false);
     const manualMode = debugOverrides?.manualMode ?? false;
+    const resolvedPhase: F3Phase =
+        manualMode && debugOverrides?.phase !== undefined ? debugOverrides.phase : phase;
     const selectedRowStartMs = SHELL_START_MS + SHELL_DURATION_MS;
     const metaStartMs = selectedRowStartMs + SELECTED_ROW_DURATION_MS;
     const subjectStartMs = metaStartMs + META_DURATION_MS;
@@ -531,12 +562,197 @@ export default function F3PhishingEmail({
         ctaStartMs,
     ]);
 
+    const clearConsequenceAutoAdvance = useCallback(() => {
+        if (consequenceAutoAdvanceRef.current != null) {
+            globalThis.window.clearTimeout(consequenceAutoAdvanceRef.current);
+            consequenceAutoAdvanceRef.current = null;
+        }
+    }, []);
+
+    const exitConsequence = useCallback(() => {
+        if (exitConsequenceLockedRef.current) return;
+        exitConsequenceLockedRef.current = true;
+        clearConsequenceAutoAdvance();
+        consequenceEnterTimelineRef.current?.kill();
+        consequenceEnterTimelineRef.current = null;
+
+        const notifyRelease = () => {
+            if (!releaseNotifiedRef.current) {
+                releaseNotifiedRef.current = true;
+                onSequenceRelease?.();
+            }
+            setPhase("sequenceComplete");
+        };
+
+        const mailStage = mailStageRef.current;
+        const backdrop = consequenceBackdropRef.current;
+        const copy = consequenceCopyRef.current;
+
+        if (!mailStage || !backdrop || !copy) {
+            notifyRelease();
+            return;
+        }
+
+        if (prefersReducedMotion) {
+            gsap.set(mailStage, { clearProps: "scale,filter,opacity,transform" });
+            gsap.set(copy, { clearProps: "scale,opacity,transform,z" });
+            gsap.set(backdrop, { opacity: 0 });
+            notifyRelease();
+            return;
+        }
+
+        const exitDur = CONSEQUENCE_EXIT_FADE_MS / 1000;
+        gsap
+            .timeline({
+                defaults: { duration: exitDur, ease: "power2.inOut" },
+                onComplete: () => {
+                    gsap.set(mailStage, { clearProps: "scale,filter,opacity,transform" });
+                    gsap.set(copy, { clearProps: "scale,opacity,transform,z" });
+                    notifyRelease();
+                },
+            })
+            .to(backdrop, { opacity: 0 }, 0)
+            .to(
+                copy,
+                {
+                    opacity: 0,
+                    scale: 0.97,
+                    z: -20,
+                    transformOrigin: "50% 55%",
+                    force3D: true,
+                },
+                0
+            )
+            .to(
+                mailStage,
+                {
+                    scale: 1,
+                    z: 0,
+                    filter: "blur(0px)",
+                    force3D: true,
+                },
+                0
+            );
+    }, [clearConsequenceAutoAdvance, onSequenceRelease, prefersReducedMotion]);
+
     useEffect(() => {
-        // Trap for entire active sequence including the first paint after activation
-        // (phase may still be "idle" until the start-sequence effect runs) and during
-        // entering/composing — matches storyboard: no visible scroll while assembling.
-        const shouldTrapScroll =
-            isSceneActive && !hasReleased && phase !== "clicked";
+        if (resolvedPhase !== "consequence") return;
+
+        exitConsequenceLockedRef.current = false;
+
+        const mailStage = mailStageRef.current;
+        const backdrop = consequenceBackdropRef.current;
+        const copy = consequenceCopyRef.current;
+        const lineA = consequenceHeadlineLineARef.current;
+        const lineB = consequenceHeadlineLineBRef.current;
+        const sub = consequenceSubRef.current;
+        const btn = whatNowButtonRef.current;
+        if (!mailStage || !backdrop || !copy || !lineA || !lineB || !sub || !btn) return;
+
+        clearConsequenceAutoAdvance();
+        consequenceEnterTimelineRef.current?.kill();
+
+        const scheduleAutoAdvance = () => {
+            if (manualMode) return;
+            clearConsequenceAutoAdvance();
+            consequenceAutoAdvanceRef.current = globalThis.window.setTimeout(() => {
+                consequenceAutoAdvanceRef.current = null;
+                exitConsequence();
+            }, CONSEQUENCE_AUTO_ADVANCE_MS);
+        };
+
+        /* Blur + Z + scale only — never brightness/opacity on this layer: filtered pixels read
+         * darker than the unfiltered `var(--background)` revealed at scaled letterbox edges. */
+        const mailStageEnd = {
+            scale: 0.92,
+            z: -190,
+            transformOrigin: "50% 45%" as const,
+            filter: "blur(9px)",
+            force3D: true,
+        };
+
+        if (manualMode) {
+            gsap.set(mailStage, mailStageEnd);
+            gsap.set(backdrop, { opacity: 0.52 });
+            gsap.set(copy, { scale: 1, z: 72, transformOrigin: "50% 55%", force3D: true });
+            gsap.set([lineA, lineB, sub, btn], { opacity: 1, scale: 1 });
+            return undefined;
+        }
+
+        if (prefersReducedMotion) {
+            gsap.set(mailStage, mailStageEnd);
+            gsap.set(backdrop, { opacity: 0.52 });
+            gsap.set(copy, { scale: 1, z: 72, transformOrigin: "50% 55%", force3D: true });
+            gsap.set([lineA, lineB, sub, btn], { opacity: 1, scale: 1 });
+            scheduleAutoAdvance();
+            globalThis.window.requestAnimationFrame(() => whatNowButtonRef.current?.focus());
+            return () => {
+                clearConsequenceAutoAdvance();
+            };
+        }
+
+        const easeUnified = "sine.inOut";
+        const easeLine = "sine.inOut";
+
+        gsap.set(backdrop, { opacity: 0 });
+        gsap.set(copy, {
+            scale: 0.86,
+            z: -40,
+            transformOrigin: "50% 55%",
+            force3D: true,
+        });
+        gsap.set([lineA, lineB, sub, btn], { opacity: 0, scale: 0.972 });
+
+        const tl = gsap.timeline({
+            onComplete: () => {
+                consequenceEnterTimelineRef.current = null;
+                whatNowButtonRef.current?.focus();
+                scheduleAutoAdvance();
+            },
+        });
+        consequenceEnterTimelineRef.current = tl;
+
+        const pushDuration = 2.5;
+        tl.to(mailStage, { ...mailStageEnd, duration: pushDuration, ease: easeUnified }, 0);
+        tl.to(backdrop, { opacity: 0.52, duration: pushDuration * 0.92, ease: easeUnified }, 0);
+        tl.to(
+            copy,
+            {
+                scale: 1,
+                z: 78,
+                duration: pushDuration,
+                ease: easeUnified,
+                force3D: true,
+            },
+            0
+        );
+
+        const lineToA = { opacity: 1, scale: 1, duration: 1.28, ease: easeLine };
+        const lineToB = { opacity: 1, scale: 1, duration: 1.28, ease: easeLine };
+        const lineToSub = { opacity: 1, scale: 1, duration: 1.12, ease: easeLine };
+        const lineToBtn = { opacity: 1, scale: 1, duration: 1.02, ease: easeLine };
+        tl.fromTo(lineA, { opacity: 0, scale: 0.97 }, lineToA, 0.22);
+        tl.fromTo(lineB, { opacity: 0, scale: 0.97 }, lineToB, ">");
+        tl.fromTo(sub, { opacity: 0, scale: 0.985 }, lineToSub, ">");
+        tl.fromTo(btn, { opacity: 0, scale: 0.99 }, lineToBtn, ">");
+
+        return () => {
+            tl.kill();
+            if (consequenceEnterTimelineRef.current === tl) {
+                consequenceEnterTimelineRef.current = null;
+            }
+            clearConsequenceAutoAdvance();
+        };
+    }, [
+        clearConsequenceAutoAdvance,
+        exitConsequence,
+        manualMode,
+        prefersReducedMotion,
+        resolvedPhase,
+    ]);
+
+    useEffect(() => {
+        const shouldTrapScroll = isSceneActive && !hasReleased;
 
         if (!shouldTrapScroll) return;
 
@@ -550,7 +766,7 @@ export default function F3PhishingEmail({
         const handleWheel = (event: WheelEvent) => {
             event.preventDefault();
 
-            if (phase !== "ready" || event.deltaY <= 0) return;
+            if (resolvedPhase !== "ready" || event.deltaY <= 0) return;
 
             clearWheelGestureTimer();
             wheelGestureIdleTimerRef.current = globalThis.window.setTimeout(() => {
@@ -597,7 +813,7 @@ export default function F3PhishingEmail({
             const isForwardKey =
                 event.key === "ArrowDown" || event.key === "PageDown" || event.key === " ";
 
-            if (phase === "ready" && isForwardKey) {
+            if (resolvedPhase === "ready" && isForwardKey) {
                 triggerNudge();
             }
         };
@@ -610,7 +826,7 @@ export default function F3PhishingEmail({
         const handleTouchMove = (event: TouchEvent) => {
             event.preventDefault();
 
-            if (phase !== "ready") return;
+            if (resolvedPhase !== "ready") return;
 
             const currentY = event.touches[0]?.clientY;
             if (currentY == null || touchStartYRef.current == null) return;
@@ -653,27 +869,19 @@ export default function F3PhishingEmail({
             globalThis.window.removeEventListener("touchend", handleTouchEnd);
             globalThis.window.removeEventListener("touchcancel", handleTouchEnd);
         };
-    }, [hasReleased, isSceneActive, phase, triggerNudge]);
+    }, [hasReleased, isSceneActive, resolvedPhase, triggerNudge]);
 
     const handleReviewActivity = () => {
         if (manualMode) return;
-        setPhase("clicked");
+        setPhase("consequence");
         elasticAnimRef.current?.cancel();
         elasticAnimRef.current = null;
         elasticGlowAnimRef.current?.cancel();
         elasticGlowAnimRef.current = null;
         setArrowVisible(false);
         setBreatheCta(false);
-
-        if (!releaseNotifiedRef.current) {
-            releaseNotifiedRef.current = true;
-            onSequenceRelease?.();
-        }
-
         onReviewActivity?.();
     };
-
-    const resolvedPhase = phase;
     const resolvedTakeoverVisible = takeoverVisible;
     const resolvedShellVisible = shellVisible;
     const resolvedSelectedActive = selectedActive;
@@ -688,15 +896,19 @@ export default function F3PhishingEmail({
 
     return (
         <div
-            className="relative w-full overflow-x-clip bg-[var(--background)]"
+            className="relative flex h-full min-h-0 w-full min-w-0 flex-col overflow-x-clip bg-[var(--background)]"
             style={{ minHeight: "min(91vh, 940px)" }}
         >
             <div
-                className="f3-sequence-frame"
+                className="f3-sequence-frame relative isolate flex h-full min-h-0 flex-1 flex-col bg-[var(--background)]"
                 data-phase={resolvedPhase}
                 data-takeover-visible={resolvedTakeoverVisible}
             >
-                <div ref={elasticLayerRef} className="f3-elastic-layer">
+                <div
+                    ref={mailStageRef}
+                    className="f3-mail-stage absolute inset-0 z-[1] flex min-h-0 flex-col bg-[var(--background)]"
+                >
+                    <div ref={elasticLayerRef} className="f3-elastic-layer flex min-h-0 flex-1 flex-col">
                     {/* Symmetric horizontal inset; inner cluster centered so the reading pane isn’t one-sided on wide viewports */}
                     <div className="flex h-full min-h-[inherit] w-full flex-col px-5 pb-12 pt-12 sm:px-6 sm:pb-12 sm:pt-14 md:px-10 md:pb-10 md:pt-[4.35rem] lg:px-14 lg:pb-11 lg:pt-[4.75rem] xl:px-16">
                         {/* Mobile: hint of a list above the reading pane */}
@@ -930,6 +1142,61 @@ export default function F3PhishingEmail({
                     </div>
                 </div>
                 </div>
+                </div>
+
+                {resolvedPhase === "consequence" ? (
+                    <section
+                        className="f3-consequence-layer pointer-events-auto absolute inset-0 z-[40] flex items-center justify-center px-6"
+                        aria-labelledby="f3-consequence-headline"
+                        aria-describedby="f3-consequence-sub"
+                    >
+                        <div
+                            ref={consequenceBackdropRef}
+                            className="f3-consequence-backdrop absolute inset-0"
+                            aria-hidden
+                        />
+                        <div
+                            ref={consequenceCopyRef}
+                            className="f3-consequence-copy-3d relative z-[1] flex max-w-[min(100%,30rem)] flex-col items-center gap-6 text-center md:max-w-[36rem] md:gap-7 pointer-events-none will-change-transform"
+                        >
+                            <p id="f3-consequence-announcer" className="sr-only" aria-live="polite">
+                                {CONSEQUENCE_HEADLINE} {CONSEQUENCE_SUBLINE}
+                            </p>
+                            <h2
+                                id="f3-consequence-headline"
+                                className="flex w-full flex-col items-center gap-2 text-balance md:gap-2.5"
+                            >
+                                <span
+                                    ref={consequenceHeadlineLineARef}
+                                    className="block text-[1.85rem] font-extrabold leading-[1.06] tracking-[-0.038em] text-white/[0.96] will-change-transform md:text-[2.2rem] lg:text-[2.5rem]"
+                                >
+                                    {CONSEQUENCE_HEADLINE_LINE_A}
+                                </span>
+                                <span
+                                    ref={consequenceHeadlineLineBRef}
+                                    className="block text-[1.62rem] font-extrabold leading-[1.08] tracking-[-0.035em] text-white/[0.93] will-change-transform md:text-[1.95rem] lg:text-[2.2rem]"
+                                >
+                                    {CONSEQUENCE_HEADLINE_LINE_B}
+                                </span>
+                            </h2>
+                            <p
+                                id="f3-consequence-sub"
+                                ref={consequenceSubRef}
+                                className="max-w-[40ch] text-pretty text-[1.08rem] leading-relaxed tracking-[-0.022em] text-white/50 md:max-w-[44ch] md:text-[1.18rem] will-change-transform"
+                            >
+                                {CONSEQUENCE_SUBLINE}
+                            </p>
+                            <button
+                                ref={whatNowButtonRef}
+                                type="button"
+                                className="pointer-events-auto mt-1 inline-flex min-h-12 min-w-[10.5rem] items-center justify-center rounded-full border border-white/[0.16] bg-white/[0.06] px-9 py-3 text-[0.95rem] font-semibold tracking-[-0.02em] text-white/90 backdrop-blur-sm transition hover:border-white/[0.24] hover:bg-white/[0.1] hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-[color-mix(in_srgb,var(--accent-secondary)_45%,transparent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)] md:min-h-[3.15rem] md:px-10 md:text-[1rem] will-change-transform"
+                                onClick={() => exitConsequence()}
+                            >
+                                {CONSEQUENCE_CTA_LABEL}
+                            </button>
+                        </div>
+                    </section>
+                ) : null}
             </div>
             {overscrollGlowPortalReady
                 ? createPortal(

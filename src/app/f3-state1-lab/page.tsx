@@ -60,14 +60,14 @@ export default function F3StateOneLabPage() {
                         <div className="inline-flex items-center gap-3 rounded-full border border-white/[0.08] bg-white/[0.03] px-4 py-2 text-[0.72rem] font-medium uppercase tracking-[0.24em] text-[var(--accent-secondary)]">
                             F3 Isolation Lab
                         </div>
-                        <h1 className="max-w-[12ch] text-4xl font-semibold leading-[0.95] tracking-[-0.05em] text-white md:text-6xl">
-                            Test State 1 without homepage noise.
+                        <h1 className="max-w-[14ch] text-4xl font-semibold leading-[0.95] tracking-[-0.05em] text-white md:text-6xl">
+                            Test F3 sequence without homepage noise.
                         </h1>
                         <p className="max-w-2xl text-[1.02rem] leading-8 text-white/58 md:text-[1.08rem]">
-                            This route mounts the exact same F3 sticky scene and choreography in
-                            isolation, so you can judge motion bugs, timing issues, and browser
-                            slowdowns without F1, F2, or the rest of the homepage affecting the
-                            result.
+                            This route mounts the same F3 sticky scene as the homepage—State 1
+                            choreography, State 2 consequence beat, and scroll release—in isolation
+                            so you can judge motion, timing, and scroll lock without F1, F2, or the
+                            rest of the page affecting the result.
                         </p>
                     </div>
 
@@ -146,7 +146,8 @@ export default function F3StateOneLabPage() {
             ) : null}
 
             <section ref={sceneSectionRef} className="pb-24 pt-10 md:pb-32 md:pt-14">
-                <div className="mx-auto max-w-[1400px]">
+                {/* Full viewport width so F3 matches homepage — max-w was framing the mail in a column */}
+                <div className="full-bleed bg-[var(--background)]">
                     <F3StateOneScene
                         key={sceneVersion}
                         sceneHeightClassName="h-[260vh]"

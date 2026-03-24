@@ -150,7 +150,6 @@ export default function F3StateOneLabPage() {
                     <F3StateOneScene
                         key={sceneVersion}
                         sceneHeightClassName="h-[260vh]"
-                        releaseOnReviewActivity
                         debugOverrides={
                             manualMode
                                 ? {

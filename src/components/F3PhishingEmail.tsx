@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, type AnimationEvent } from "react";
+import { createPortal } from "react-dom";
 import { F3GhostInboxMobileStrip, F3GhostInboxSidebar } from "./F3GhostInbox";
 import F3NudgeArrow from "./F3NudgeArrow";
 
@@ -53,8 +54,25 @@ const DETAILS_DURATION_MS = 900;
 const POST_DETAILS_PAUSE_MS = 700;
 const ACTION_DURATION_MS = 900;
 const CTA_DURATION_MS = 220;
-/** One nudge per scroll *gesture* — trackpads keep emitting wheel events past 1200ms */
-const NUDGE_COOLDOWN_MS = 2800;
+/**
+ * Light throttle for keyboard / touch. Wheel uses gesture clustering instead (see handler).
+ */
+const NUDGE_MIN_INTERVAL_MS = 320;
+
+/** After this quiet gap with no wheel events, the next scroll counts as a new gesture. */
+const WHEEL_GESTURE_IDLE_MS = 220;
+
+/**
+ * Hard floor between wheel-driven nudges. Stops a second RAF if the idle timer fires
+ * mid–trackpad burst (brief lulls still happen in one “flick”).
+ */
+const MIN_MS_BETWEEN_WHEEL_NUDGES = 520;
+
+/** Must match elastic translate + overscroll glow timings */
+const ELASTIC_NUDGE_DURATION_MS = 840;
+
+/** Peak opacity for bottom wash — keep barely perceptible so the arrow stays the hero */
+const ELASTIC_OVERSCROLL_GLOW_PEAK = 0.106;
 
 function usePrefersReducedMotion() {
     const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
@@ -282,11 +300,17 @@ export default function F3PhishingEmail({
     const hasStartedRef = useRef(false);
     const releaseNotifiedRef = useRef(false);
     const touchStartYRef = useRef<number | null>(null);
+    const touchNudgedThisGestureRef = useRef(false);
     const nudgeCooldownRef = useRef(0);
     const scheduledTimeoutsRef = useRef<number[]>([]);
     const elasticLayerRef = useRef<HTMLDivElement>(null);
+    const elasticGlowRef = useRef<HTMLDivElement>(null);
     const elasticAnimRef = useRef<Animation | null>(null);
+    const elasticGlowAnimRef = useRef<Animation | null>(null);
     const wheelNudgeRafRef = useRef<number | null>(null);
+    const wheelNudgedThisGestureRef = useRef(false);
+    const wheelGestureIdleTimerRef = useRef<number | null>(null);
+    const lastWheelNudgeAtRef = useRef(0);
 
     const [phase, setPhase] = useState<F3Phase>("idle");
     const [takeoverVisible, setTakeoverVisible] = useState(false);
@@ -301,6 +325,7 @@ export default function F3PhishingEmail({
     const [arrowVisible, setArrowVisible] = useState(false);
     const [arrowCycle, setArrowCycle] = useState(0);
     const [breatheCta, setBreatheCta] = useState(false);
+    const [overscrollGlowPortalReady, setOverscrollGlowPortalReady] = useState(false);
     const manualMode = debugOverrides?.manualMode ?? false;
     const selectedRowStartMs = SHELL_START_MS + SHELL_DURATION_MS;
     const metaStartMs = selectedRowStartMs + SELECTED_ROW_DURATION_MS;
@@ -346,16 +371,24 @@ export default function F3PhishingEmail({
         if (!el || typeof el.animate !== "function") return;
 
         elasticAnimRef.current?.cancel();
+        elasticGlowAnimRef.current?.cancel();
+
         try {
             const anim = el.animate(
                 [
-                    { transform: "translateY(0px)" },
-                    { transform: "translateY(-20px)", offset: 0.4 },
+                    {
+                        transform: "translateY(0px)",
+                        easing: "cubic-bezier(0.33, 0, 0.2, 1)",
+                    },
+                    {
+                        transform: "translateY(-14px)",
+                        offset: 0.52,
+                        easing: "cubic-bezier(0.22, 1, 0.32, 1)",
+                    },
                     { transform: "translateY(0px)" },
                 ],
                 {
-                    duration: 620,
-                    easing: "cubic-bezier(0.25, 0.88, 0.34, 1)",
+                    duration: ELASTIC_NUDGE_DURATION_MS,
                     fill: "none",
                 }
             );
@@ -365,14 +398,43 @@ export default function F3PhishingEmail({
                     elasticAnimRef.current = null;
                 }
             };
+
+            const glowEl = elasticGlowRef.current;
+            if (glowEl && typeof glowEl.animate === "function") {
+                const glowAnim = glowEl.animate(
+                    [
+                        {
+                            opacity: 0,
+                            easing: "cubic-bezier(0.33, 0, 0.2, 1)",
+                        },
+                        {
+                            opacity: ELASTIC_OVERSCROLL_GLOW_PEAK,
+                            offset: 0.52,
+                            easing: "cubic-bezier(0.22, 1, 0.32, 1)",
+                        },
+                        { opacity: 0 },
+                    ],
+                    {
+                        duration: ELASTIC_NUDGE_DURATION_MS,
+                        fill: "none",
+                    }
+                );
+                elasticGlowAnimRef.current = glowAnim;
+                glowAnim.onfinish = () => {
+                    if (elasticGlowAnimRef.current === glowAnim) {
+                        elasticGlowAnimRef.current = null;
+                    }
+                };
+            }
         } catch {
             elasticAnimRef.current = null;
+            elasticGlowAnimRef.current = null;
         }
     }, [isStepEnabled, prefersReducedMotion]);
 
     const triggerNudge = useCallback(() => {
         const now = Date.now();
-        if (now - nudgeCooldownRef.current < NUDGE_COOLDOWN_MS) return;
+        if (now - nudgeCooldownRef.current < NUDGE_MIN_INTERVAL_MS) return;
         nudgeCooldownRef.current = now;
 
         playElasticNudge();
@@ -405,7 +467,13 @@ export default function F3PhishingEmail({
         return () => {
             elasticAnimRef.current?.cancel();
             elasticAnimRef.current = null;
+            elasticGlowAnimRef.current?.cancel();
+            elasticGlowAnimRef.current = null;
         };
+    }, []);
+
+    useEffect(() => {
+        setOverscrollGlowPortalReady(true);
     }, []);
 
     useEffect(() => {
@@ -464,19 +532,47 @@ export default function F3PhishingEmail({
     ]);
 
     useEffect(() => {
+        // Trap for entire active sequence including the first paint after activation
+        // (phase may still be "idle" until the start-sequence effect runs) and during
+        // entering/composing — matches storyboard: no visible scroll while assembling.
         const shouldTrapScroll =
-            isSceneActive && !hasReleased && phase !== "idle" && phase !== "clicked";
+            isSceneActive && !hasReleased && phase !== "clicked";
 
         if (!shouldTrapScroll) return;
+
+        const clearWheelGestureTimer = () => {
+            if (wheelGestureIdleTimerRef.current != null) {
+                globalThis.window.clearTimeout(wheelGestureIdleTimerRef.current);
+                wheelGestureIdleTimerRef.current = null;
+            }
+        };
 
         const handleWheel = (event: WheelEvent) => {
             event.preventDefault();
 
             if (phase !== "ready" || event.deltaY <= 0) return;
 
+            clearWheelGestureTimer();
+            wheelGestureIdleTimerRef.current = globalThis.window.setTimeout(() => {
+                wheelNudgedThisGestureRef.current = false;
+                wheelGestureIdleTimerRef.current = null;
+            }, WHEEL_GESTURE_IDLE_MS);
+
+            if (wheelNudgedThisGestureRef.current) return;
+
             if (wheelNudgeRafRef.current != null) return;
             wheelNudgeRafRef.current = globalThis.window.requestAnimationFrame(() => {
                 wheelNudgeRafRef.current = null;
+                if (wheelNudgedThisGestureRef.current) return;
+
+                const now = globalThis.window.performance.now();
+                if (now - lastWheelNudgeAtRef.current < MIN_MS_BETWEEN_WHEEL_NUDGES) {
+                    wheelNudgedThisGestureRef.current = true;
+                    return;
+                }
+
+                wheelNudgedThisGestureRef.current = true;
+                lastWheelNudgeAtRef.current = now;
                 triggerNudge();
             });
         };
@@ -496,6 +592,8 @@ export default function F3PhishingEmail({
 
             event.preventDefault();
 
+            if (event.repeat) return;
+
             const isForwardKey =
                 event.key === "ArrowDown" || event.key === "PageDown" || event.key === " ";
 
@@ -506,6 +604,7 @@ export default function F3PhishingEmail({
 
         const handleTouchStart = (event: TouchEvent) => {
             touchStartYRef.current = event.touches[0]?.clientY ?? null;
+            touchNudgedThisGestureRef.current = false;
         };
 
         const handleTouchMove = (event: TouchEvent) => {
@@ -516,9 +615,16 @@ export default function F3PhishingEmail({
             const currentY = event.touches[0]?.clientY;
             if (currentY == null || touchStartYRef.current == null) return;
 
+            if (touchNudgedThisGestureRef.current) return;
+
             if (touchStartYRef.current - currentY > 8) {
+                touchNudgedThisGestureRef.current = true;
                 triggerNudge();
             }
+        };
+
+        const handleTouchEnd = () => {
+            touchNudgedThisGestureRef.current = false;
         };
 
         globalThis.window.addEventListener("wheel", handleWheel, { passive: false });
@@ -529,16 +635,23 @@ export default function F3PhishingEmail({
         globalThis.window.addEventListener("touchmove", handleTouchMove, {
             passive: false,
         });
+        globalThis.window.addEventListener("touchend", handleTouchEnd);
+        globalThis.window.addEventListener("touchcancel", handleTouchEnd);
 
         return () => {
+            clearWheelGestureTimer();
             if (wheelNudgeRafRef.current != null) {
                 globalThis.window.cancelAnimationFrame(wheelNudgeRafRef.current);
                 wheelNudgeRafRef.current = null;
             }
+            wheelNudgedThisGestureRef.current = false;
+            lastWheelNudgeAtRef.current = 0;
             globalThis.window.removeEventListener("wheel", handleWheel);
             globalThis.window.removeEventListener("keydown", handleKeyDown);
             globalThis.window.removeEventListener("touchstart", handleTouchStart);
             globalThis.window.removeEventListener("touchmove", handleTouchMove);
+            globalThis.window.removeEventListener("touchend", handleTouchEnd);
+            globalThis.window.removeEventListener("touchcancel", handleTouchEnd);
         };
     }, [hasReleased, isSceneActive, phase, triggerNudge]);
 
@@ -547,6 +660,8 @@ export default function F3PhishingEmail({
         setPhase("clicked");
         elasticAnimRef.current?.cancel();
         elasticAnimRef.current = null;
+        elasticGlowAnimRef.current?.cancel();
+        elasticGlowAnimRef.current = null;
         setArrowVisible(false);
         setBreatheCta(false);
 
@@ -816,6 +931,16 @@ export default function F3PhishingEmail({
                 </div>
                 </div>
             </div>
+            {overscrollGlowPortalReady
+                ? createPortal(
+                      <div
+                          ref={elasticGlowRef}
+                          className="f3-elastic-overscroll-glow"
+                          aria-hidden
+                      />,
+                      globalThis.document.body
+                  )
+                : null}
         </div>
     );
 }

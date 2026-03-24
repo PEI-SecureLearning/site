@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { gsap } from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import F3PhishingEmail, { F3PhishingEmailProps } from "./F3PhishingEmail";
@@ -9,28 +9,30 @@ gsap.registerPlugin(ScrollTrigger);
 
 export type F3StateOneSceneProps = Readonly<{
     sceneHeightClassName?: string;
-    releaseOnReviewActivity?: boolean;
     debugOverrides?: F3PhishingEmailProps["debugOverrides"];
 }>;
 
 export default function F3StateOneScene({
     sceneHeightClassName,
-    releaseOnReviewActivity = false,
     debugOverrides,
 }: F3StateOneSceneProps) {
     const sceneRef = useRef<HTMLDivElement>(null);
-    const entrySentinelRef = useRef<HTMLDivElement>(null);
     const [isSceneActive, setIsSceneActive] = useState(false);
     const [hasReleased, setHasReleased] = useState(false);
+    const [releasedScrollOffset, setReleasedScrollOffset] = useState(0);
+    const [releasedSceneHeight, setReleasedSceneHeight] = useState<number | null>(null);
 
     useEffect(() => {
-        if (!sceneRef.current || !entrySentinelRef.current) return;
+        const scene = sceneRef.current;
+        if (!scene || hasReleased) {
+            setIsSceneActive(false);
+            return;
+        }
 
         const ctx = gsap.context(() => {
             ScrollTrigger.create({
-                trigger: entrySentinelRef.current,
-                start: "top center",
-                endTrigger: sceneRef.current,
+                trigger: scene,
+                start: "top top",
                 end: "bottom bottom",
                 invalidateOnRefresh: true,
                 onEnter: () => setIsSceneActive(true),
@@ -41,25 +43,47 @@ export default function F3StateOneScene({
         }, sceneRef);
 
         return () => ctx.revert();
+    }, [hasReleased]);
+
+    const handleSequenceRelease = useCallback(() => {
+        const scene = sceneRef.current;
+        if (scene) {
+            const sceneTop = scene.getBoundingClientRect().top + globalThis.window.scrollY;
+            const maxStickyOffset = Math.max(0, scene.offsetHeight - globalThis.window.innerHeight);
+            const stickyOffset = Math.min(
+                Math.max(0, globalThis.window.scrollY - sceneTop),
+                maxStickyOffset
+            );
+
+            setReleasedScrollOffset(stickyOffset);
+            setReleasedSceneHeight(globalThis.window.innerHeight + stickyOffset);
+        }
+        setHasReleased(true);
     }, []);
 
+    const tallRunwayClass = sceneHeightClassName ?? "h-[220vh]";
+    const sceneLayoutClass = hasReleased
+        ? "relative w-full"
+        : `relative w-full ${tallRunwayClass}`;
+    const stageLayoutClass = hasReleased
+        ? "relative flex min-h-screen w-full items-center overflow-visible pt-10 md:pt-12"
+        : "sticky top-0 flex h-screen w-full items-center overflow-visible pt-10 md:pt-12";
+    const releasedSceneStyle =
+        hasReleased && releasedSceneHeight != null
+            ? { height: `${releasedSceneHeight}px` }
+            : undefined;
+    const releasedStageStyle =
+        hasReleased && releasedScrollOffset > 0
+            ? { transform: `translateY(${releasedScrollOffset}px)` }
+            : undefined;
+
     return (
-        <div
-            ref={sceneRef}
-            className={`relative w-full ${sceneHeightClassName ?? "h-[220vh]"}`}
-        >
-            <div
-                ref={entrySentinelRef}
-                className="pointer-events-none absolute left-0 right-0 top-1/2 h-px"
-                aria-hidden
-            />
-            <div className="sticky top-0 flex h-screen w-full items-center overflow-visible pt-10 md:pt-12">
+        <div ref={sceneRef} className={sceneLayoutClass} style={releasedSceneStyle}>
+            <div className={stageLayoutClass} style={releasedStageStyle}>
                 <F3PhishingEmail
                     isSceneActive={isSceneActive}
                     hasReleased={hasReleased}
-                    onSequenceRelease={
-                        releaseOnReviewActivity ? () => setHasReleased(true) : undefined
-                    }
+                    onSequenceRelease={handleSequenceRelease}
                     debugOverrides={debugOverrides}
                 />
             </div>

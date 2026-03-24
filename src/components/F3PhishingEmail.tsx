@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type AnimationEvent } from "react";
 import { F3GhostInboxMobileStrip, F3GhostInboxSidebar } from "./F3GhostInbox";
 import F3NudgeArrow from "./F3NudgeArrow";
 
@@ -53,6 +53,8 @@ const DETAILS_DURATION_MS = 900;
 const POST_DETAILS_PAUSE_MS = 700;
 const ACTION_DURATION_MS = 900;
 const CTA_DURATION_MS = 220;
+/** One nudge per scroll *gesture* — trackpads keep emitting wheel events past 1200ms */
+const NUDGE_COOLDOWN_MS = 2800;
 
 function usePrefersReducedMotion() {
     const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
@@ -282,6 +284,9 @@ export default function F3PhishingEmail({
     const touchStartYRef = useRef<number | null>(null);
     const nudgeCooldownRef = useRef(0);
     const scheduledTimeoutsRef = useRef<number[]>([]);
+    const elasticLayerRef = useRef<HTMLDivElement>(null);
+    const elasticAnimRef = useRef<Animation | null>(null);
+    const wheelNudgeRafRef = useRef<number | null>(null);
 
     const [phase, setPhase] = useState<F3Phase>("idle");
     const [takeoverVisible, setTakeoverVisible] = useState(false);
@@ -293,7 +298,6 @@ export default function F3PhishingEmail({
     const [detailsVisible, setDetailsVisible] = useState(false);
     const [actionActive, setActionActive] = useState(false);
     const [ctaVisible, setCtaVisible] = useState(false);
-    const [isNudging, setIsNudging] = useState(false);
     const [arrowVisible, setArrowVisible] = useState(false);
     const [arrowCycle, setArrowCycle] = useState(0);
     const [breatheCta, setBreatheCta] = useState(false);
@@ -336,41 +340,73 @@ export default function F3PhishingEmail({
         schedule(980, () => setBreatheCta(false));
     }, [schedule]);
 
+    const playElasticNudge = useCallback(() => {
+        if (!isStepEnabled("isNudging") || prefersReducedMotion) return;
+        const el = elasticLayerRef.current;
+        if (!el || typeof el.animate !== "function") return;
+
+        elasticAnimRef.current?.cancel();
+        try {
+            const anim = el.animate(
+                [
+                    { transform: "translateY(0px)" },
+                    { transform: "translateY(-20px)", offset: 0.4 },
+                    { transform: "translateY(0px)" },
+                ],
+                {
+                    duration: 620,
+                    easing: "cubic-bezier(0.25, 0.88, 0.34, 1)",
+                    fill: "none",
+                }
+            );
+            elasticAnimRef.current = anim;
+            anim.onfinish = () => {
+                if (elasticAnimRef.current === anim) {
+                    elasticAnimRef.current = null;
+                }
+            };
+        } catch {
+            elasticAnimRef.current = null;
+        }
+    }, [isStepEnabled, prefersReducedMotion]);
+
     const triggerNudge = useCallback(() => {
         const now = Date.now();
-        if (now - nudgeCooldownRef.current < 1200) return;
+        if (now - nudgeCooldownRef.current < NUDGE_COOLDOWN_MS) return;
         nudgeCooldownRef.current = now;
 
-        if (isStepEnabled("isNudging")) {
-            setIsNudging(false);
-        }
-        if (isStepEnabled("arrowVisible")) {
-            setArrowVisible(false);
-        }
-        globalThis.window.requestAnimationFrame(() => {
-            if (isStepEnabled("isNudging")) {
-                setIsNudging(true);
-            }
-            setArrowCycle((current) => current + 1);
-            if (isStepEnabled("arrowVisible")) {
-                setArrowVisible(true);
-            }
-        });
+        playElasticNudge();
 
-        if (isStepEnabled("isNudging")) {
-            schedule(560, () => setIsNudging(false));
-        }
         if (isStepEnabled("arrowVisible")) {
-            schedule(1700, () => setArrowVisible(false));
+            setArrowCycle((current) => current + 1);
+            setArrowVisible(true);
         }
+
         if (isStepEnabled("breatheCta")) {
             runCtaBreathe();
         }
-    }, [isStepEnabled, runCtaBreathe, schedule]);
+    }, [isStepEnabled, playElasticNudge, runCtaBreathe]);
+
+    const dismissNudgeArrow = useCallback(() => setArrowVisible(false), []);
+
+    const handleArrowDrawEraseEnd = useCallback(
+        (event: AnimationEvent<HTMLDivElement>) => {
+            if (!event.animationName.includes("f3ArrowFadeInOut")) return;
+            dismissNudgeArrow();
+        },
+        [dismissNudgeArrow]
+    );
 
     useEffect(() => {
         return () => clearScheduledTimeouts();
     }, [clearScheduledTimeouts]);
+
+    useEffect(() => {
+        return () => {
+            elasticAnimRef.current?.cancel();
+            elasticAnimRef.current = null;
+        };
+    }, []);
 
     useEffect(() => {
         if (!isSceneActive || hasReleased || hasStartedRef.current) return;
@@ -436,9 +472,13 @@ export default function F3PhishingEmail({
         const handleWheel = (event: WheelEvent) => {
             event.preventDefault();
 
-            if (phase === "ready" && event.deltaY > 0) {
+            if (phase !== "ready" || event.deltaY <= 0) return;
+
+            if (wheelNudgeRafRef.current != null) return;
+            wheelNudgeRafRef.current = globalThis.window.requestAnimationFrame(() => {
+                wheelNudgeRafRef.current = null;
                 triggerNudge();
-            }
+            });
         };
 
         const handleKeyDown = (event: KeyboardEvent) => {
@@ -491,6 +531,10 @@ export default function F3PhishingEmail({
         });
 
         return () => {
+            if (wheelNudgeRafRef.current != null) {
+                globalThis.window.cancelAnimationFrame(wheelNudgeRafRef.current);
+                wheelNudgeRafRef.current = null;
+            }
             globalThis.window.removeEventListener("wheel", handleWheel);
             globalThis.window.removeEventListener("keydown", handleKeyDown);
             globalThis.window.removeEventListener("touchstart", handleTouchStart);
@@ -501,7 +545,8 @@ export default function F3PhishingEmail({
     const handleReviewActivity = () => {
         if (manualMode) return;
         setPhase("clicked");
-        setIsNudging(false);
+        elasticAnimRef.current?.cancel();
+        elasticAnimRef.current = null;
         setArrowVisible(false);
         setBreatheCta(false);
 
@@ -523,7 +568,6 @@ export default function F3PhishingEmail({
     const resolvedDetailsVisible = detailsVisible;
     const resolvedActionActive = actionActive;
     const resolvedCtaVisible = ctaVisible;
-    const resolvedIsNudging = isNudging;
     const resolvedArrowVisible = arrowVisible;
     const resolvedBreatheCta = breatheCta;
 
@@ -536,19 +580,19 @@ export default function F3PhishingEmail({
                 className="f3-sequence-frame"
                 data-phase={resolvedPhase}
                 data-takeover-visible={resolvedTakeoverVisible}
-                data-nudging={resolvedIsNudging}
             >
-                {/* Symmetric horizontal inset; inner cluster centered so the reading pane isn’t one-sided on wide viewports */}
-                <div className="flex h-full min-h-[inherit] w-full flex-col px-5 pb-12 pt-12 sm:px-6 sm:pb-12 sm:pt-14 md:px-10 md:pb-10 md:pt-[4.35rem] lg:px-14 lg:pb-11 lg:pt-[4.75rem] xl:px-16">
-                    {/* Mobile: hint of a list above the reading pane */}
-                    <div className="f3-divider mb-6 border-b pb-2 md:mb-0 md:hidden">
-                        <F3GhostInboxMobileStrip
-                            shellVisible={resolvedShellVisible}
-                            selectedActive={resolvedSelectedActive}
-                        />
-                    </div>
+                <div ref={elasticLayerRef} className="f3-elastic-layer">
+                    {/* Symmetric horizontal inset; inner cluster centered so the reading pane isn’t one-sided on wide viewports */}
+                    <div className="flex h-full min-h-[inherit] w-full flex-col px-5 pb-12 pt-12 sm:px-6 sm:pb-12 sm:pt-14 md:px-10 md:pb-10 md:pt-[4.35rem] lg:px-14 lg:pb-11 lg:pt-[4.75rem] xl:px-16">
+                        {/* Mobile: hint of a list above the reading pane */}
+                        <div className="f3-divider mb-6 border-b pb-2 md:mb-0 md:hidden">
+                            <F3GhostInboxMobileStrip
+                                shellVisible={resolvedShellVisible}
+                                selectedActive={resolvedSelectedActive}
+                            />
+                        </div>
 
-                    <div className="mx-auto flex min-h-0 w-full max-w-[min(100%,72rem)] flex-1 flex-col md:flex-row md:items-stretch">
+                        <div className="mx-auto flex min-h-0 w-full max-w-[min(100%,72rem)] flex-1 flex-col md:flex-row md:items-stretch">
                         {/* Ghost inbox — narrow pane, recedes vs reading area (directions.md) */}
                         <aside
                             className="f3-shell-surface f3-divider relative z-0 hidden min-h-0 shrink-0 flex-col border-r md:flex md:w-[248px] md:min-w-[220px] md:max-w-[260px]"
@@ -759,6 +803,9 @@ export default function F3PhishingEmail({
                                                 key={arrowCycle}
                                                 anchorRef={ctaAnchorRef}
                                                 ctaRef={ctaButtonRef}
+                                                prefersReducedMotion={prefersReducedMotion}
+                                                onArrowDone={dismissNudgeArrow}
+                                                onDrawEraseAnimationEnd={handleArrowDrawEraseEnd}
                                             />
                                         ) : null}
                                     </div>
@@ -766,6 +813,7 @@ export default function F3PhishingEmail({
                             </div>
                         </article>
                     </div>
+                </div>
                 </div>
             </div>
         </div>

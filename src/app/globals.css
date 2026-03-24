@@ -273,9 +273,16 @@ a:hover {
   filter: brightness(1);
 }
 
-.f3-sequence-frame[data-nudging="true"] {
-  animation: f3ElasticResistance 520ms cubic-bezier(0.22, 1, 0.36, 1);
+/* Elastic nudge lives here so takeover scale/transform on the outer frame is never overridden */
+.f3-elastic-layer {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: inherit;
+  width: 100%;
+  transition: none;
 }
+
 
 .f3-shell-surface,
 .f3-ghost-sidebar-shell,
@@ -455,9 +462,24 @@ a:hover {
 
 /* Filled chalk arrow — color via currentColor; rotation aimed at CTA in JS */
 .f3-cta-arrow {
-  opacity: 0;
   isolation: isolate;
-  animation: f3ArrowFade 1650ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  /* Room for drop-shadow so it isn’t clipped against a zero-height box */
+  overflow: visible;
+}
+
+/* Opacity envelope; in-place chalk wipe is GSAP + SVG mask in F3NudgeArrow */
+.f3-cta-arrow-fade {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  animation: f3ArrowFadeInOut 3s forwards;
+}
+
+.f3-cta-arrow-fade--reduced {
+  animation: none;
+  opacity: 0.88;
 }
 
 .f3-cta-arrow-svg {
@@ -468,8 +490,7 @@ a:hover {
 }
 
 .f3-cta-arrow-ink-path {
-  opacity: 0;
-  animation: f3ArrowInkPath 1650ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  opacity: 1;
 }
 
 .tag {
@@ -690,20 +711,6 @@ header[data-scrolled="true"] {
   }
 }
 
-@keyframes f3ElasticResistance {
-  0% {
-    transform: translateY(0);
-  }
-
-  38% {
-    transform: translateY(-22px);
-  }
-
-  100% {
-    transform: translateY(0);
-  }
-}
-
 @keyframes f3DetailReveal {
   from {
     opacity: 0;
@@ -742,31 +749,21 @@ header[data-scrolled="true"] {
   }
 }
 
-@keyframes f3ArrowInkPath {
-  0%,
-  10% {
+@keyframes f3ArrowFadeInOut {
+  0% {
     opacity: 0;
+    animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
   }
 
-  22%,
-  78% {
+  11% {
     opacity: 0.9;
+    animation-timing-function: linear;
   }
 
-  100% {
-    opacity: 0;
-  }
-}
-
-@keyframes f3ArrowFade {
-  0%,
-  14% {
-    opacity: 0;
-  }
-
-  24%,
-  78% {
-    opacity: 0.82;
+  38% {
+    opacity: 0.9;
+    /* 38% → 100%: one straight ramp 0.9 → 0 */
+    animation-timing-function: linear;
   }
 
   100% {
@@ -807,16 +804,14 @@ header[data-scrolled="true"] {
     transition: none;
   }
 
-  .f3-sequence-frame[data-nudging="true"],
   .f3-email-cta-breathe,
-  .f3-cta-arrow,
-  .f3-cta-arrow-ink-path,
+  .f3-cta-arrow-fade,
   .f3-detail-list[data-visible="true"] li {
     animation: none;
   }
 
-  .f3-cta-arrow-ink-path {
-    opacity: 0.85;
+  .f3-cta-arrow-fade:not(.f3-cta-arrow-fade--reduced) {
+    opacity: 0.88;
   }
 }
 

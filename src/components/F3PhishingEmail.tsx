@@ -1,6 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, type AnimationEvent } from "react";
+import {
+    useCallback,
+    useEffect,
+    useLayoutEffect,
+    useRef,
+    useState,
+    type AnimationEvent,
+} from "react";
 import { createPortal } from "react-dom";
 import { gsap } from "gsap";
 import { F3GhostInboxMobileStrip, F3GhostInboxSidebar } from "./F3GhostInbox";
@@ -80,15 +87,25 @@ const ELASTIC_NUDGE_DURATION_MS = 840;
 /** Peak opacity for bottom wash — keep barely perceptible so the arrow stays the hero */
 const ELASTIC_OVERSCROLL_GLOW_PEAK = 0.106;
 
+/** Screen-reader / live region: natural pauses (visual lines have no punctuation). */
 const CONSEQUENCE_HEADLINE = "You clicked. That's all it takes.";
 /** Two beats — second line animates only after the first completes. */
-const CONSEQUENCE_HEADLINE_LINE_A = "You clicked.";
-const CONSEQUENCE_HEADLINE_LINE_B = "That's all it takes.";
+const CONSEQUENCE_HEADLINE_LINE_A = "You clicked";
+const CONSEQUENCE_HEADLINE_LINE_B = "That's all it takes";
+
+/** Let the copy land before focus + auto-advance timer (ms). */
+const CONSEQUENCE_POST_SETTLE_MS = 340;
+/** Dead air after line 1 fully lands before line 2 begins (seconds). */
+const CONSEQUENCE_LINE1_LAND_PAUSE_SEC = 1.3;
+/** Dead air after line 2 lands before the support line begins (seconds). */
+const CONSEQUENCE_LINE2_TO_SUBLINE_PAUSE_SEC = 0.32;
+/** Dead air after support line lands before “What now?” begins (seconds). */
+const CONSEQUENCE_SUBLINE_TO_CTA_PAUSE_SEC = 0.55;
 const CONSEQUENCE_SUBLINE = "One rushed decision can become an incident.";
 const CONSEQUENCE_CTA_LABEL = "What now?";
 
-/** Auto-advance if “What now?” is untouched (storyboard: ~1.0–1.5s after it’s available). */
-const CONSEQUENCE_AUTO_ADVANCE_MS = 1850;
+/** Auto-advance if “What now?” is untouched (~2.85s after focus + timer start). */
+const CONSEQUENCE_AUTO_ADVANCE_MS = 2850;
 
 const CONSEQUENCE_EXIT_FADE_MS = 480;
 
@@ -635,7 +652,7 @@ export default function F3PhishingEmail({
             );
     }, [clearConsequenceAutoAdvance, onSequenceRelease, prefersReducedMotion]);
 
-    useEffect(() => {
+    useLayoutEffect(() => {
         if (resolvedPhase !== "consequence") return;
 
         exitConsequenceLockedRef.current = false;
@@ -692,7 +709,6 @@ export default function F3PhishingEmail({
         }
 
         const easeUnified = "sine.inOut";
-        const easeLine = "sine.inOut";
 
         gsap.set(backdrop, { opacity: 0 });
         gsap.set(copy, {
@@ -703,11 +719,15 @@ export default function F3PhishingEmail({
         });
         gsap.set([lineA, lineB, sub, btn], { opacity: 0, scale: 0.972 });
 
+        let postSettleTimeoutId = 0;
         const tl = gsap.timeline({
             onComplete: () => {
                 consequenceEnterTimelineRef.current = null;
-                whatNowButtonRef.current?.focus();
-                scheduleAutoAdvance();
+                postSettleTimeoutId = globalThis.window.setTimeout(() => {
+                    whatNowButtonRef.current?.focus();
+                    scheduleAutoAdvance();
+                    postSettleTimeoutId = 0;
+                }, CONSEQUENCE_POST_SETTLE_MS);
             },
         });
         consequenceEnterTimelineRef.current = tl;
@@ -727,16 +747,38 @@ export default function F3PhishingEmail({
             0
         );
 
-        const lineToA = { opacity: 1, scale: 1, duration: 1.28, ease: easeLine };
-        const lineToB = { opacity: 1, scale: 1, duration: 1.28, ease: easeLine };
-        const lineToSub = { opacity: 1, scale: 1, duration: 1.12, ease: easeLine };
-        const lineToBtn = { opacity: 1, scale: 1, duration: 1.02, ease: easeLine };
-        tl.fromTo(lineA, { opacity: 0, scale: 0.97 }, lineToA, 0.22);
-        tl.fromTo(lineB, { opacity: 0, scale: 0.97 }, lineToB, ">");
-        tl.fromTo(sub, { opacity: 0, scale: 0.985 }, lineToSub, ">");
-        tl.fromTo(btn, { opacity: 0, scale: 0.99 }, lineToBtn, ">");
+        const easeLineSoft = "sine.inOut";
+        const easeLineCommand = "power2.inOut";
+        const easeSub = "sine.inOut";
+        const easeBtn = "power2.inOut";
+        const lineToA = { opacity: 1, scale: 1, duration: 0.84, ease: easeLineSoft };
+        const lineToB = { opacity: 1, scale: 1, duration: 1.48, ease: easeLineCommand };
+        const lineToSub = { opacity: 1, scale: 1, duration: 0.95, ease: easeSub };
+        const lineToBtn = { opacity: 1, scale: 1, duration: 1.28, ease: easeBtn };
+        tl.fromTo(lineA, { opacity: 0, scale: 0.985 }, lineToA, 0.22);
+        tl.fromTo(
+            lineB,
+            { opacity: 0, scale: 0.965 },
+            lineToB,
+            `>+=${CONSEQUENCE_LINE1_LAND_PAUSE_SEC}`
+        );
+        tl.fromTo(
+            sub,
+            { opacity: 0, scale: 0.995 },
+            lineToSub,
+            `>+=${CONSEQUENCE_LINE2_TO_SUBLINE_PAUSE_SEC}`
+        );
+        tl.fromTo(
+            btn,
+            { opacity: 0, scale: 0.995 },
+            lineToBtn,
+            `>+=${CONSEQUENCE_SUBLINE_TO_CTA_PAUSE_SEC}`
+        );
 
         return () => {
+            if (postSettleTimeoutId !== 0) {
+                globalThis.window.clearTimeout(postSettleTimeoutId);
+            }
             tl.kill();
             if (consequenceEnterTimelineRef.current === tl) {
                 consequenceEnterTimelineRef.current = null;
@@ -1155,26 +1197,28 @@ export default function F3PhishingEmail({
                             className="f3-consequence-backdrop absolute inset-0"
                             aria-hidden
                         />
-                        <div
-                            ref={consequenceCopyRef}
-                            className="f3-consequence-copy-3d relative z-[1] flex max-w-[min(100%,30rem)] flex-col items-center gap-6 text-center md:max-w-[36rem] md:gap-7 pointer-events-none will-change-transform"
-                        >
+                        {/* Optical lift: GSAP targets inner copy only so this offset stays static. */}
+                        <div className="relative z-[1] -translate-y-[min(3vh,1.75rem)] pointer-events-none">
+                            <div
+                                ref={consequenceCopyRef}
+                                className="f3-consequence-copy-3d flex max-w-[min(100%,32rem)] flex-col items-center text-center md:max-w-[38rem] pointer-events-none will-change-transform"
+                            >
                             <p id="f3-consequence-announcer" className="sr-only" aria-live="polite">
                                 {CONSEQUENCE_HEADLINE} {CONSEQUENCE_SUBLINE}
                             </p>
                             <h2
                                 id="f3-consequence-headline"
-                                className="flex w-full flex-col items-center gap-2 text-balance md:gap-2.5"
+                                className="flex w-full flex-col items-center gap-4 text-balance md:gap-5"
                             >
                                 <span
                                     ref={consequenceHeadlineLineARef}
-                                    className="block text-[1.85rem] font-extrabold leading-[1.06] tracking-[-0.038em] text-white/[0.96] will-change-transform md:text-[2.2rem] lg:text-[2.5rem]"
+                                    className="block text-[1.48rem] font-semibold leading-[1.22] tracking-[-0.022em] text-white/58 opacity-0 will-change-transform md:text-[1.58rem] lg:text-[1.68rem]"
                                 >
                                     {CONSEQUENCE_HEADLINE_LINE_A}
                                 </span>
                                 <span
                                     ref={consequenceHeadlineLineBRef}
-                                    className="block text-[1.62rem] font-extrabold leading-[1.08] tracking-[-0.035em] text-white/[0.93] will-change-transform md:text-[1.95rem] lg:text-[2.2rem]"
+                                    className="block max-w-[min(100%,22ch)] text-[2.05rem] font-extrabold leading-[1.02] tracking-[-0.042em] text-white opacity-0 will-change-transform md:text-[2.45rem] lg:text-[2.85rem]"
                                 >
                                     {CONSEQUENCE_HEADLINE_LINE_B}
                                 </span>
@@ -1182,18 +1226,19 @@ export default function F3PhishingEmail({
                             <p
                                 id="f3-consequence-sub"
                                 ref={consequenceSubRef}
-                                className="max-w-[40ch] text-pretty text-[1.08rem] leading-relaxed tracking-[-0.022em] text-white/50 md:max-w-[44ch] md:text-[1.18rem] will-change-transform"
+                                className="mt-6 max-w-[40ch] text-pretty text-[0.98rem] font-normal leading-[1.58] tracking-[-0.012em] text-white/44 opacity-0 md:mt-7 md:max-w-[44ch] md:text-[1.03rem] md:leading-[1.62] will-change-transform"
                             >
                                 {CONSEQUENCE_SUBLINE}
                             </p>
                             <button
                                 ref={whatNowButtonRef}
                                 type="button"
-                                className="pointer-events-auto mt-1 inline-flex min-h-12 min-w-[10.5rem] items-center justify-center rounded-full border border-white/[0.16] bg-white/[0.06] px-9 py-3 text-[0.95rem] font-semibold tracking-[-0.02em] text-white/90 backdrop-blur-sm transition hover:border-white/[0.24] hover:bg-white/[0.1] hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-[color-mix(in_srgb,var(--accent-secondary)_45%,transparent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)] md:min-h-[3.15rem] md:px-10 md:text-[1rem] will-change-transform"
+                                className="pointer-events-auto cursor-pointer mt-8 inline-flex min-h-12 min-w-[10.5rem] items-center justify-center rounded-full border border-white/[0.11] bg-white/[0.045] px-9 py-3 text-[0.93rem] font-medium tracking-[-0.015em] text-white/86 opacity-0 backdrop-blur-sm transition-colors duration-200 hover:border-white/[0.18] hover:bg-white/[0.08] hover:text-white/95 focus:outline-none focus-visible:ring-2 focus-visible:ring-[color-mix(in_srgb,var(--accent-secondary)_45%,transparent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)] md:mt-9 md:min-h-[3.05rem] md:px-10 md:text-[0.97rem] will-change-transform"
                                 onClick={() => exitConsequence()}
                             >
                                 {CONSEQUENCE_CTA_LABEL}
                             </button>
+                            </div>
                         </div>
                     </section>
                 ) : null}

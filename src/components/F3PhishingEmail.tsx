@@ -11,7 +11,21 @@ import {
 import { createPortal } from "react-dom";
 import { gsap } from "gsap";
 import { F3GhostInboxMobileStrip, F3GhostInboxSidebar } from "./F3GhostInbox";
+import {
+    F3_ACTION_SENTENCE,
+    F3_CTA_LABEL,
+    F3_DETAIL_DEVICE,
+    F3_DETAIL_LOCATION,
+    F3_DETAIL_TIME,
+    F3_EVENT_SENTENCE,
+    F3_SENDER_DISPLAY,
+    F3_SENDER_EMAIL,
+    F3_SUBJECT_LINE,
+} from "./f3PhishingCopy";
+import F3MailReaderChrome from "./F3MailReaderChrome";
 import F3NudgeArrow from "./F3NudgeArrow";
+import F3RemediationReaderPanel from "./F3RemediationReaderPanel";
+import F3RemediationSlab from "./F3RemediationSlab";
 
 export type F3PhishingEmailProps = Readonly<{
     isSceneActive?: boolean;
@@ -42,6 +56,9 @@ type F3Phase =
     | "composing"
     | "ready"
     | "consequence"
+    | "remediationSlab"
+    | "remediation"
+    | "remediationSettled"
     | "sequenceComplete";
 type F3DebugStepKey = Exclude<
     NonNullable<F3PhishingEmailProps["debugOverrides"]> extends infer T
@@ -52,9 +69,9 @@ type F3DebugStepKey = Exclude<
     "manualMode" | "phase"
 >;
 
-const SUBJECT_LINE = "Unusual sign-in attempt detected";
-const EVENT_SENTENCE = "We detected a sign-in attempt from a new device on your account.";
-const ACTION_SENTENCE = "If you don't recognize this activity, secure your account now!";
+const SUBJECT_LINE = F3_SUBJECT_LINE;
+const EVENT_SENTENCE = F3_EVENT_SENTENCE;
+const ACTION_SENTENCE = F3_ACTION_SENTENCE;
 const SHELL_START_MS = 360;
 const SHELL_DURATION_MS = 620;
 const SELECTED_ROW_DURATION_MS = 320;
@@ -108,6 +125,9 @@ const CONSEQUENCE_CTA_LABEL = "What now?";
 const CONSEQUENCE_AUTO_ADVANCE_MS = 2850;
 
 const CONSEQUENCE_EXIT_FADE_MS = 480;
+
+/** Readable dwell on the bridge card after State 2 before forensic email (ms). */
+const REMEDIATION_SLAB_DWELL_MS = 5000;
 
 function usePrefersReducedMotion() {
     const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
@@ -218,110 +238,6 @@ function TypedLine({
     );
 }
 
-function MailReaderChrome() {
-    return (
-        <header className="f3-divider border-b pb-3.5 pt-0.5">
-            <div
-                className="flex min-h-9 items-center gap-1 sm:gap-1.5"
-                role="toolbar"
-                aria-label="Message toolbar"
-            >
-                <div className="flex shrink-0 items-center gap-0.5">
-                    <button type="button" className="f3-mail-icon-btn" aria-label="Back to inbox">
-                        <svg
-                            width={18}
-                            height={18}
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth={1.65}
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            aria-hidden
-                        >
-                            <path d="M15 18l-6-6 6-6" />
-                        </svg>
-                    </button>
-                    <button type="button" className="f3-mail-icon-btn" aria-label="Archive">
-                        <svg
-                            width={18}
-                            height={18}
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth={1.65}
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            aria-hidden
-                        >
-                            <path d="M4 8h16v11a2 2 0 01-2 2H6a2 2 0 01-2-2V8z" />
-                            <path d="M3 8l1.5-3h15L21 8" />
-                            <path d="M10 13h4" />
-                        </svg>
-                    </button>
-                    <button type="button" className="f3-mail-icon-btn" aria-label="More">
-                        <svg
-                            width={18}
-                            height={18}
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth={2}
-                            strokeLinecap="round"
-                            aria-hidden
-                        >
-                            <circle cx="12" cy="6" r="1.1" fill="currentColor" stroke="none" />
-                            <circle cx="12" cy="12" r="1.1" fill="currentColor" stroke="none" />
-                            <circle cx="12" cy="18" r="1.1" fill="currentColor" stroke="none" />
-                        </svg>
-                    </button>
-                </div>
-
-                <div
-                    className="f3-mail-search-field flex min-h-9 min-w-0 flex-1 items-center gap-2 rounded-lg border px-2 sm:px-2.5"
-                    aria-hidden
-                >
-                    <svg
-                        width={14}
-                        height={14}
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth={1.75}
-                        strokeLinecap="round"
-                        className="f3-mail-search-icon shrink-0"
-                    >
-                        <circle cx="11" cy="11" r="7" />
-                        <path d="M20 20l-4-4" />
-                    </svg>
-                    <span
-                        className="f3-mail-search-placeholder min-w-0 flex-1 truncate text-left text-[0.7rem] tracking-wide sm:text-[0.72rem]"
-                        style={{ fontFamily: "var(--font-geist-mono), monospace" }}
-                    >
-                        Search mail
-                    </span>
-                </div>
-
-                <button type="button" className="f3-mail-icon-btn" aria-label="Star">
-                    <svg
-                        width={18}
-                        height={18}
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth={1.65}
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        aria-hidden
-                    >
-                        <path d="M12 3.5l2.2 5.5 5.8.4-4.5 3.6 1.6 5.6L12 15.9 6.9 18.6l1.6-5.6L4 9.4l5.8-.4L12 3.5z" />
-                    </svg>
-                </button>
-            </div>
-        </header>
-    );
-}
-
 export default function F3PhishingEmail({
     isSceneActive = false,
     hasReleased = false,
@@ -372,6 +288,7 @@ export default function F3PhishingEmail({
     const [arrowCycle, setArrowCycle] = useState(0);
     const [breatheCta, setBreatheCta] = useState(false);
     const [overscrollGlowPortalReady, setOverscrollGlowPortalReady] = useState(false);
+    const [slabPortalReady, setSlabPortalReady] = useState(false);
     const manualMode = debugOverrides?.manualMode ?? false;
     const resolvedPhase: F3Phase =
         manualMode && debugOverrides?.phase !== undefined ? debugOverrides.phase : phase;
@@ -522,6 +439,7 @@ export default function F3PhishingEmail({
 
     useEffect(() => {
         setOverscrollGlowPortalReady(true);
+        setSlabPortalReady(true);
     }, []);
 
     useEffect(() => {
@@ -593,12 +511,8 @@ export default function F3PhishingEmail({
         consequenceEnterTimelineRef.current?.kill();
         consequenceEnterTimelineRef.current = null;
 
-        const notifyRelease = () => {
-            if (!releaseNotifiedRef.current) {
-                releaseNotifiedRef.current = true;
-                onSequenceRelease?.();
-            }
-            setPhase("sequenceComplete");
+        const handoffToRemediationSlab = () => {
+            setPhase("remediationSlab");
         };
 
         const mailStage = mailStageRef.current;
@@ -606,7 +520,7 @@ export default function F3PhishingEmail({
         const copy = consequenceCopyRef.current;
 
         if (!mailStage || !backdrop || !copy) {
-            notifyRelease();
+            handoffToRemediationSlab();
             return;
         }
 
@@ -614,7 +528,7 @@ export default function F3PhishingEmail({
             gsap.set(mailStage, { clearProps: "scale,filter,opacity,transform" });
             gsap.set(copy, { clearProps: "scale,opacity,transform,z" });
             gsap.set(backdrop, { opacity: 0 });
-            notifyRelease();
+            handoffToRemediationSlab();
             return;
         }
 
@@ -625,7 +539,7 @@ export default function F3PhishingEmail({
                 onComplete: () => {
                     gsap.set(mailStage, { clearProps: "scale,filter,opacity,transform" });
                     gsap.set(copy, { clearProps: "scale,opacity,transform,z" });
-                    notifyRelease();
+                    handoffToRemediationSlab();
                 },
             })
             .to(backdrop, { opacity: 0 }, 0)
@@ -650,7 +564,33 @@ export default function F3PhishingEmail({
                 },
                 0
             );
-    }, [clearConsequenceAutoAdvance, onSequenceRelease, prefersReducedMotion]);
+    }, [clearConsequenceAutoAdvance, prefersReducedMotion]);
+
+    useEffect(() => {
+        if (resolvedPhase !== "remediationSlab") return;
+        if (manualMode) return;
+
+        const timeoutId = globalThis.window.setTimeout(() => {
+            setPhase("remediation");
+        }, REMEDIATION_SLAB_DWELL_MS);
+
+        return () => globalThis.window.clearTimeout(timeoutId);
+    }, [manualMode, resolvedPhase]);
+
+    const requestSequenceRelease = useCallback(() => {
+        if (releaseNotifiedRef.current) return;
+        releaseNotifiedRef.current = true;
+        onSequenceRelease?.();
+        setPhase("sequenceComplete");
+    }, [onSequenceRelease]);
+
+    useLayoutEffect(() => {
+        if (resolvedPhase !== "remediation") return;
+        const frameId = globalThis.window.requestAnimationFrame(() => {
+            setPhase("remediationSettled");
+        });
+        return () => globalThis.window.cancelAnimationFrame(frameId);
+    }, [resolvedPhase]);
 
     useLayoutEffect(() => {
         if (resolvedPhase !== "consequence") return;
@@ -808,7 +748,36 @@ export default function F3PhishingEmail({
         const handleWheel = (event: WheelEvent) => {
             event.preventDefault();
 
-            if (resolvedPhase !== "ready" || event.deltaY <= 0) return;
+            const forward = event.deltaY > 0;
+
+            if (resolvedPhase === "remediationSettled" && forward) {
+                clearWheelGestureTimer();
+                wheelGestureIdleTimerRef.current = globalThis.window.setTimeout(() => {
+                    wheelNudgedThisGestureRef.current = false;
+                    wheelGestureIdleTimerRef.current = null;
+                }, WHEEL_GESTURE_IDLE_MS);
+
+                if (wheelNudgedThisGestureRef.current) return;
+
+                if (wheelNudgeRafRef.current != null) return;
+                wheelNudgeRafRef.current = globalThis.window.requestAnimationFrame(() => {
+                    wheelNudgeRafRef.current = null;
+                    if (wheelNudgedThisGestureRef.current) return;
+
+                    const now = globalThis.window.performance.now();
+                    if (now - lastWheelNudgeAtRef.current < MIN_MS_BETWEEN_WHEEL_NUDGES) {
+                        wheelNudgedThisGestureRef.current = true;
+                        return;
+                    }
+
+                    wheelNudgedThisGestureRef.current = true;
+                    lastWheelNudgeAtRef.current = now;
+                    requestSequenceRelease();
+                });
+                return;
+            }
+
+            if (resolvedPhase !== "ready" || !forward) return;
 
             clearWheelGestureTimer();
             wheelGestureIdleTimerRef.current = globalThis.window.setTimeout(() => {
@@ -855,6 +824,11 @@ export default function F3PhishingEmail({
             const isForwardKey =
                 event.key === "ArrowDown" || event.key === "PageDown" || event.key === " ";
 
+            if (resolvedPhase === "remediationSettled" && isForwardKey) {
+                requestSequenceRelease();
+                return;
+            }
+
             if (resolvedPhase === "ready" && isForwardKey) {
                 triggerNudge();
             }
@@ -867,6 +841,19 @@ export default function F3PhishingEmail({
 
         const handleTouchMove = (event: TouchEvent) => {
             event.preventDefault();
+
+            if (resolvedPhase === "remediationSettled") {
+                const currentY = event.touches[0]?.clientY;
+                if (currentY == null || touchStartYRef.current == null) return;
+
+                if (touchNudgedThisGestureRef.current) return;
+
+                if (touchStartYRef.current - currentY > 8) {
+                    touchNudgedThisGestureRef.current = true;
+                    requestSequenceRelease();
+                }
+                return;
+            }
 
             if (resolvedPhase !== "ready") return;
 
@@ -911,7 +898,7 @@ export default function F3PhishingEmail({
             globalThis.window.removeEventListener("touchend", handleTouchEnd);
             globalThis.window.removeEventListener("touchcancel", handleTouchEnd);
         };
-    }, [hasReleased, isSceneActive, resolvedPhase, triggerNudge]);
+    }, [hasReleased, isSceneActive, requestSequenceRelease, resolvedPhase, triggerNudge]);
 
     const handleReviewActivity = () => {
         if (manualMode) return;
@@ -936,9 +923,16 @@ export default function F3PhishingEmail({
     const resolvedArrowVisible = arrowVisible;
     const resolvedBreatheCta = breatheCta;
 
+    const showRemediationUi =
+        resolvedPhase === "remediation" ||
+        resolvedPhase === "remediationSettled" ||
+        resolvedPhase === "sequenceComplete";
+
     return (
         <div
-            className="relative flex h-full min-h-0 w-full min-w-0 flex-col overflow-x-clip bg-[var(--background)]"
+            className={`relative flex h-full min-h-0 w-full min-w-0 flex-col bg-[var(--background)] ${
+                showRemediationUi ? "overflow-x-visible overflow-y-visible" : "overflow-x-clip"
+            }`}
             style={{ minHeight: "min(91vh, 940px)" }}
         >
             <div
@@ -978,13 +972,18 @@ export default function F3PhishingEmail({
                         <article
                             className="f3-shell-surface f3-divider relative z-[5] flex min-w-0 flex-1 flex-col overflow-visible border-l bg-[var(--background)] md:border-l-0"
                             data-shell-visible={resolvedShellVisible}
+                            data-f3-remediation={showRemediationUi ? "true" : "false"}
                             aria-label="Demonstration: simulated security alert email, as in a phishing attempt"
                         >
                             <div className="shrink-0 px-3 pt-0.5 pb-0 md:px-5 lg:px-6">
-                                <MailReaderChrome />
+                                <F3MailReaderChrome />
                             </div>
 
                             <div className="relative min-h-0 min-w-0 flex-1 overflow-visible px-3 pb-8 pt-5 md:px-5 md:pt-6 md:pb-10 lg:px-6">
+                                {showRemediationUi ? (
+                                    <F3RemediationReaderPanel />
+                                ) : (
+                                    <>
                                 {/* em-based type/grid inside; size knob: --f3-message-scale on :root */}
                                 <div className="f3-message-scale-root grid w-full max-w-[44rem] grid-cols-[2.5em_minmax(0,1fr)] gap-x-3 md:grid-cols-[2.75em_minmax(0,1fr)] md:gap-x-4">
                                     <TypedLine
@@ -1013,7 +1012,7 @@ export default function F3PhishingEmail({
                                     >
                                         <div className="flex flex-wrap items-baseline gap-x-1.5 gap-y-0.5">
                                             <p className="text-[0.93em] font-normal leading-none text-white/[0.72] md:text-[0.95em]">
-                                                Security Operations
+                                                {F3_SENDER_DISPLAY}
                                             </p>
                                             <span
                                                 className="select-none text-[0.65em] text-white/18"
@@ -1032,7 +1031,7 @@ export default function F3PhishingEmail({
                                             className="mt-1 max-w-full truncate font-mono text-[0.64em] leading-none text-white/24 md:text-[0.65em]"
                                             style={{ fontFamily: "var(--font-geist-mono), monospace" }}
                                         >
-                                            noreply@secure-yourorg.com
+                                            {F3_SENDER_EMAIL}
                                         </p>
                                     </div>
 
@@ -1048,12 +1047,12 @@ export default function F3PhishingEmail({
                                             <li>
                                                 <TypedLine
                                                     as="span"
-                                                    text="Location: Soroca, Moldavia"
+                                                    text={F3_DETAIL_LOCATION}
                                                     active={resolvedDetailsVisible}
                                                     duration={DETAILS_DURATION_MS}
                                                     skipAnimation={prefersReducedMotion}
                                                     className="f3-detail-line"
-                                                    reserveSpaceText="Location: Soroca, Moldavia"
+                                                    reserveSpaceText={F3_DETAIL_LOCATION}
                                                     reserveSpaceContent={
                                                         <>
                                                             <strong className="font-semibold text-white/[0.8]">
@@ -1075,12 +1074,12 @@ export default function F3PhishingEmail({
                                             <li>
                                                 <TypedLine
                                                     as="span"
-                                                    text="Device: Windows 11 · Chrome"
+                                                    text={F3_DETAIL_DEVICE}
                                                     active={resolvedDetailsVisible}
                                                     duration={DETAILS_DURATION_MS}
                                                     skipAnimation={prefersReducedMotion}
                                                     className="f3-detail-line"
-                                                    reserveSpaceText="Device: Windows 11 · Chrome"
+                                                    reserveSpaceText={F3_DETAIL_DEVICE}
                                                     reserveSpaceContent={
                                                         <>
                                                             <strong className="font-semibold text-white/[0.8]">
@@ -1102,12 +1101,12 @@ export default function F3PhishingEmail({
                                             <li>
                                                 <TypedLine
                                                     as="span"
-                                                    text="Time: Today, 9:14 AM"
+                                                    text={F3_DETAIL_TIME}
                                                     active={resolvedDetailsVisible}
                                                     duration={DETAILS_DURATION_MS}
                                                     skipAnimation={prefersReducedMotion}
                                                     className="f3-detail-line"
-                                                    reserveSpaceText="Time: Today, 9:14 AM"
+                                                    reserveSpaceText={F3_DETAIL_TIME}
                                                     reserveSpaceContent={
                                                         <>
                                                             <strong className="font-semibold text-white/[0.8]">
@@ -1164,7 +1163,7 @@ export default function F3PhishingEmail({
                                                 className={`f3-email-cta inline-flex min-h-[42px] min-w-[12.5rem] cursor-pointer items-center justify-center rounded-lg px-7 py-2.5 text-[0.875rem] font-semibold leading-none tracking-[-0.01em] sm:min-h-[44px] sm:min-w-[13rem] sm:px-8 sm:py-3 sm:text-[0.9375rem] focus:outline-none focus-visible:ring-2 focus-visible:ring-[color-mix(in_srgb,var(--accent-secondary)_50%,transparent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)] ${resolvedBreatheCta ? "f3-email-cta-breathe" : ""}`}
                                                 onClick={handleReviewActivity}
                                             >
-                                                Secure account
+                                                {F3_CTA_LABEL}
                                             </button>
                                         </div>
                                         {resolvedArrowVisible && resolvedPhase === "ready" ? (
@@ -1179,6 +1178,8 @@ export default function F3PhishingEmail({
                                         ) : null}
                                     </div>
                                 </div>
+                                    </>
+                                )}
                             </div>
                         </article>
                     </div>
@@ -1242,6 +1243,7 @@ export default function F3PhishingEmail({
                         </div>
                     </section>
                 ) : null}
+
             </div>
             {overscrollGlowPortalReady
                 ? createPortal(
@@ -1253,6 +1255,9 @@ export default function F3PhishingEmail({
                       globalThis.document.body
                   )
                 : null}
+            {slabPortalReady && resolvedPhase === "remediationSlab" ? (
+                <F3RemediationSlab prefersReducedMotion={prefersReducedMotion} />
+            ) : null}
         </div>
     );
 }

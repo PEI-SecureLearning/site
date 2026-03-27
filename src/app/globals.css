@@ -257,6 +257,29 @@ a:hover {
     0 0 20px -8px color-mix(in srgb, var(--accent-secondary) 25%, transparent);
 }
 
+/* Remediation / static frame: same look as default CTA, no hover lift or click */
+.f3-email-cta.f3-email-cta--inert {
+  pointer-events: none;
+  cursor: default;
+  user-select: none;
+}
+
+.f3-email-cta.f3-email-cta--inert:hover,
+.f3-email-cta.f3-email-cta--inert:active,
+.f3-email-cta.f3-email-cta--inert:focus,
+.f3-email-cta.f3-email-cta--inert:focus-visible {
+  border-color: color-mix(in srgb, var(--foreground) 18%, transparent);
+  background: color-mix(in srgb, var(--surface) 88%, var(--background));
+  color: color-mix(in srgb, var(--foreground) 92%, transparent);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--foreground) 6%, transparent),
+    0 1px 2px color-mix(in srgb, var(--accent-secondary) 12%, transparent),
+    0 0 28px -6px color-mix(in srgb, var(--accent-secondary) 32%, transparent),
+    0 10px 36px -14px color-mix(in srgb, var(--accent-secondary) 22%, transparent);
+  transform: none;
+  outline: none;
+}
+
 .f3-sequence-frame {
   opacity: 0;
   transform: translateY(12px) scale(0.985);
@@ -278,6 +301,247 @@ a:hover {
   perspective: 1800px;
   perspective-origin: 50% 44%;
   transform-style: preserve-3d;
+}
+
+/* State 3 + terminal: flat stacking; remediation lives in the reading pane (no 3D carryover from State 2). */
+.f3-sequence-frame[data-phase="remediation"],
+.f3-sequence-frame[data-phase="remediationSettled"],
+.f3-sequence-frame[data-phase="sequenceComplete"] {
+  perspective: none;
+  transform-style: flat;
+  overflow: visible;
+}
+
+.f3-sequence-frame[data-phase="remediation"] .f3-mail-stage,
+.f3-sequence-frame[data-phase="remediationSettled"] .f3-mail-stage,
+.f3-sequence-frame[data-phase="sequenceComplete"] .f3-mail-stage,
+.f3-sequence-frame[data-phase="remediation"] .f3-elastic-layer,
+.f3-sequence-frame[data-phase="remediationSettled"] .f3-elastic-layer,
+.f3-sequence-frame[data-phase="sequenceComplete"] .f3-elastic-layer {
+  overflow: visible;
+}
+
+/* --- F3 State 3: remediation — same inbox reader as State 1; forensic highlights only --- */
+
+.f3-shell-surface.f3-divider[data-f3-remediation="true"] {
+  /* Same plane as ghost inbox: no lifted panel, no accent border shift */
+  border-left-color: color-mix(in srgb, var(--foreground) 10%, transparent);
+  box-shadow: none;
+}
+
+/* Forensic layer — remediation tips (primary reading; keep large & clear) */
+.f3-forensic-overlay-label {
+  position: absolute;
+  pointer-events: none;
+  z-index: 36;
+  max-width: min(32rem, calc(100vw - 2rem));
+  padding-left: 0;
+  font-family: var(--font-inter), system-ui, sans-serif;
+  font-size: clamp(0.9rem, 2.35vw, 1.125rem);
+  font-weight: 600;
+  letter-spacing: -0.025em;
+  line-height: 1.42;
+  color: color-mix(in srgb, var(--foreground) 78%, var(--muted));
+  text-wrap: pretty;
+}
+
+@media (min-width: 768px) {
+  .f3-forensic-overlay-label {
+    font-size: clamp(1rem, 1.65vw, 1.2rem);
+    line-height: 1.4;
+  }
+}
+
+/* Thin gradient leaders (SVG) */
+.f3-forensic-leader {
+  display: block;
+  width: clamp(1.1rem, 3.8vw, 2.4rem);
+  height: 2px;
+  min-width: 0.85rem;
+  flex-shrink: 0;
+  align-self: center;
+}
+
+.f3-forensic-row {
+  display: inline-flex;
+  max-width: 100%;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.32rem 0.42rem;
+  vertical-align: baseline;
+}
+
+.f3-forensic-row--wrap {
+  display: flex;
+  width: 100%;
+}
+
+.f3-forensic-row--pressure {
+  vertical-align: baseline;
+}
+
+.f3-forensic-row--cta {
+  align-items: flex-start;
+}
+
+.f3-forensic-label {
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: min(16rem, 100%);
+  font-family: var(--font-inter), system-ui, sans-serif;
+  font-size: 0.58rem;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  line-height: 1.38;
+  color: color-mix(in srgb, var(--foreground) 36%, var(--muted));
+  text-wrap: pretty;
+}
+
+@media (min-width: 768px) {
+  .f3-forensic-label {
+    font-size: 0.6rem;
+    max-width: 13.5rem;
+  }
+}
+
+/* In-copy targets — brand lilac #a78bfa (same as --accent-secondary) */
+.f3-forensic-highlight {
+  border-radius: 3px;
+  padding: 0.06em 0.14em 0.08em;
+  margin: -0.05em -0.03em;
+  background: color-mix(in srgb, #a78bfa 32%, transparent);
+  box-shadow:
+    inset 0 0 0 1px rgb(167 139 250 / 0.52),
+    0 0 18px -6px rgb(167 139 250 / 0.28);
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+
+.f3-forensic-highlight--inline {
+  white-space: nowrap;
+}
+
+.f3-forensic-highlight--cta-ring {
+  border-radius: 10px;
+  padding: 2px;
+  background: linear-gradient(
+    135deg,
+    rgb(167 139 250 / 0.55) 0%,
+    rgb(167 139 250 / 0.22) 100%
+  );
+  box-shadow:
+    0 0 0 1px rgb(167 139 250 / 0.45),
+    0 0 24px -8px rgb(167 139 250 / 0.3);
+}
+
+/* Legacy tokens for orphan .f3-remediation-* utilities below */
+:root {
+  --f3-rem-surface: color-mix(in srgb, var(--foreground) 7%, var(--background));
+  --f3-rem-panel: color-mix(in srgb, var(--foreground) 10%, var(--background));
+  --f3-rem-ink: color-mix(in srgb, var(--foreground) 88%, white);
+  --f3-rem-ink-muted: color-mix(in srgb, var(--foreground) 42%, var(--muted));
+  --f3-rem-ink-faint: color-mix(in srgb, var(--foreground) 28%, var(--muted));
+  --f3-rem-border-subtle: color-mix(in srgb, var(--accent-secondary) 14%, transparent);
+  --f3-rem-accent: color-mix(in srgb, var(--accent-secondary) 72%, #5b4d8c);
+  --f3-rem-accent-soft: color-mix(in srgb, var(--accent-secondary) 16%, transparent);
+}
+
+.f3-remediation-chip {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  border: 1px solid var(--f3-rem-border-subtle);
+  background: color-mix(in srgb, var(--f3-rem-panel) 88%, var(--f3-rem-surface));
+  padding: 0.35rem 0.75rem;
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--f3-rem-ink-muted);
+}
+
+.f3-remediation-chip--accent {
+  border-color: color-mix(in srgb, var(--f3-rem-accent) 28%, var(--f3-rem-border-subtle));
+  background: color-mix(in srgb, var(--f3-rem-accent-soft) 35%, var(--f3-rem-panel));
+  color: color-mix(in srgb, var(--f3-rem-accent) 72%, var(--f3-rem-ink));
+}
+
+.f3-remediation-pill {
+  flex-shrink: 0;
+  display: inline-flex;
+  height: 1.35rem;
+  min-width: 1.35rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: color-mix(in srgb, var(--f3-rem-accent) 85%, var(--f3-rem-ink));
+  border: 1px solid color-mix(in srgb, var(--f3-rem-accent) 35%, transparent);
+  background: color-mix(in srgb, var(--f3-rem-accent-soft) 38%, var(--f3-rem-surface));
+}
+
+.f3-remediation-pill--compact {
+  height: 1.15rem;
+  min-width: 1.15rem;
+  font-size: 0.58rem;
+}
+
+.f3-remediation-chip--compact {
+  padding: 0.2rem 0.55rem;
+  font-size: 0.58rem;
+  letter-spacing: 0.05em;
+}
+
+.f3-remediation-step-num--compact {
+  width: 1.15rem;
+  height: 1.15rem;
+  font-size: 0.55rem;
+  border-radius: 5px;
+}
+
+.f3-remediation-step-num {
+  flex-shrink: 0;
+  display: inline-flex;
+  width: 1.35rem;
+  height: 1.35rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: var(--f3-rem-ink-muted);
+  border: 1px solid var(--f3-rem-border-subtle);
+  background: color-mix(in srgb, var(--f3-rem-surface) 52%, var(--f3-rem-panel));
+}
+
+.f3-remediation-primary-cta {
+  color: #faf9f7;
+  border: 1px solid color-mix(in srgb, var(--f3-rem-accent) 38%, #2a2438);
+  background: linear-gradient(
+    165deg,
+    color-mix(in srgb, var(--accent-secondary) 82%, #1f1a2e) 0%,
+    color-mix(in srgb, var(--accent-secondary) 58%, #2e2842) 100%
+  );
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, white 14%, transparent),
+    0 2px 12px -3px color-mix(in srgb, var(--accent-secondary) 38%, transparent);
+  transition:
+    transform 180ms cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 180ms ease,
+    filter 180ms ease;
+}
+
+.f3-remediation-primary-cta:hover {
+  filter: brightness(1.04);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, white 18%, transparent),
+    0 4px 18px -4px color-mix(in srgb, var(--accent-secondary) 42%, transparent);
+}
+
+.f3-remediation-primary-cta:active {
+  transform: translateY(1px);
 }
 
 .f3-mail-stage {

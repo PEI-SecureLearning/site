@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRef, useState } from "react";
 import F3StateOneScene from "@/components/F3StateOneScene";
+import F3RemediationSlab from "@/components/F3RemediationSlab";
 
 const DEBUG_STEP_LABELS = [
     ["takeoverVisible", "1. Takeover"],
@@ -146,6 +147,21 @@ export default function F3StateOneLabPage() {
             ) : null}
 
             <section ref={sceneSectionRef} className="pb-24 pt-10 md:pb-32 md:pt-14">
+                <div className="mx-auto mb-10 max-w-6xl px-6 md:mb-14 md:px-10">
+                    <div className="mb-4 flex items-center gap-3">
+                        <div className="h-px flex-1 bg-white/[0.08]" />
+                        <span className="text-[0.68rem] font-medium uppercase tracking-[0.24em] text-white/42">
+                            Slab preview
+                        </span>
+                        <div className="h-px flex-1 bg-white/[0.08]" />
+                    </div>
+                    <F3RemediationSlab
+                        prefersReducedMotion={false}
+                        placement="inline"
+                        animateOnMount={false}
+                    />
+                </div>
+
                 {/* Full viewport width so F3 matches homepage — max-w was framing the mail in a column */}
                 <div className="full-bleed bg-[var(--background)]">
                     <F3StateOneScene

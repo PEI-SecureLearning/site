@@ -296,8 +296,9 @@ a:hover {
   filter: brightness(1);
 }
 
-/* State 2: one continuous depth move — mail recedes in Z, copy advances (GSAP sets Z on children). */
-.f3-sequence-frame[data-phase="consequence"] {
+/* State 2 + slab handoff: keep the same 3D camera while the mail refocuses and the slab opens. */
+.f3-sequence-frame[data-phase="consequence"],
+.f3-sequence-frame[data-phase="remediationSlab"] {
   perspective: 1800px;
   perspective-origin: 50% 44%;
   transform-style: preserve-3d;
@@ -334,21 +335,22 @@ a:hover {
   position: absolute;
   pointer-events: none;
   z-index: 36;
-  max-width: min(32rem, calc(100vw - 2rem));
+  max-width: min(30rem, calc(100vw - 2.5rem));
   padding-left: 0;
   font-family: var(--font-inter), system-ui, sans-serif;
-  font-size: clamp(0.9rem, 2.35vw, 1.125rem);
-  font-weight: 600;
-  letter-spacing: -0.025em;
-  line-height: 1.42;
-  color: color-mix(in srgb, var(--foreground) 78%, var(--muted));
+  font-size: clamp(0.98rem, 2.15vw, 1.28rem);
+  font-weight: 650;
+  letter-spacing: -0.034em;
+  line-height: 1.26;
+  color: color-mix(in srgb, var(--foreground) 88%, var(--muted));
   text-wrap: pretty;
+  text-shadow: 0 1px 14px rgb(6 4 10 / 0.18);
 }
 
 @media (min-width: 768px) {
   .f3-forensic-overlay-label {
-    font-size: clamp(1rem, 1.65vw, 1.2rem);
-    line-height: 1.4;
+    font-size: clamp(1.05rem, 1.35vw, 1.38rem);
+    line-height: 1.22;
   }
 }
 

@@ -186,9 +186,13 @@ function GhostRowSidebar({
 export function F3GhostInboxSidebar({
     shellVisible = true,
     selectedActive = true,
+    dockTargetId,
+    dockTargetClassName,
 }: Readonly<{
     shellVisible?: boolean;
     selectedActive?: boolean;
+    dockTargetId?: string;
+    dockTargetClassName?: string;
 }>) {
     return (
         <div className="relative flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden" aria-hidden>
@@ -197,6 +201,16 @@ export function F3GhostInboxSidebar({
                 data-shell-visible={shellVisible}
                 style={{ boxShadow: "inset -1px 0 0 rgba(255,255,255,0.018)" }}
             >
+                {dockTargetId ? (
+                    <div
+                        id={dockTargetId}
+                        className={
+                            dockTargetClassName ??
+                            "pointer-events-none absolute left-[0.02rem] top-[0.16rem] z-[12] h-[3.25rem] w-[3.25rem] opacity-0"
+                        }
+                        aria-hidden
+                    />
+                ) : null}
                 {SIDEBAR_ROWS.map((row, index) => (
                     <GhostRowSidebar
                         key={`${row.sender}-${row.time}-${row.subject}`}
@@ -254,16 +268,30 @@ const MOBILE_STRIP: Row[] = [
 export function F3GhostInboxMobileStrip({
     shellVisible = true,
     selectedActive = true,
+    dockTargetId,
+    dockTargetClassName,
 }: Readonly<{
     shellVisible?: boolean;
     selectedActive?: boolean;
+    dockTargetId?: string;
+    dockTargetClassName?: string;
 }>) {
     return (
         <div
-            className="f3-ghost-mobile-strip flex gap-2 overflow-x-auto pb-1 pt-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+            className="f3-ghost-mobile-strip relative flex gap-2 overflow-x-auto pb-1 pt-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
             data-shell-visible={shellVisible}
             aria-hidden
         >
+            {dockTargetId ? (
+                <div
+                    id={dockTargetId}
+                    className={
+                        dockTargetClassName ??
+                        "pointer-events-none absolute left-[-0.08rem] top-[0.16rem] h-[3rem] w-[3rem] opacity-0"
+                    }
+                    aria-hidden
+                />
+            ) : null}
             {MOBILE_STRIP.map((row, index) => {
                 const bgStyle = AVATAR_BG[index % AVATAR_BG.length] ?? AVATAR_BG[0];
                 if (row.selected) {

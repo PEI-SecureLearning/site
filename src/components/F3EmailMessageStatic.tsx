@@ -1,5 +1,6 @@
 "use client";
 
+import type { Ref } from "react";
 import {
     F3_CTA_LABEL,
     F3_DETAIL_DEVICE,
@@ -11,6 +12,12 @@ import {
     F3_SUBJECT_LINE,
 } from "./f3PhishingCopy";
 
+export type F3EmailMessageStaticForensicRefs = Readonly<{
+    senderDomainRef?: Ref<HTMLSpanElement>;
+    pressureRef?: Ref<HTMLElement>;
+    ctaRef?: Ref<HTMLSpanElement>;
+}>;
+
 function splitSenderEmail(email: string): { localWithAt: string; domain: string } {
     const i = email.indexOf("@");
     if (i < 0) return { localWithAt: email, domain: "" };
@@ -21,7 +28,11 @@ function splitSenderEmail(email: string): { localWithAt: string; domain: string 
  * Final-frame phishing email — same DOM structure/classes as State 1 when fully composed.
  * `data-f3-forensic-target` marks regions for `F3ForensicOverlay` only.
  */
-export default function F3EmailMessageStatic() {
+export default function F3EmailMessageStatic({
+    senderDomainRef,
+    pressureRef,
+    ctaRef,
+}: F3EmailMessageStaticForensicRefs) {
     const { localWithAt, domain } = splitSenderEmail(F3_SENDER_EMAIL);
 
     return (
@@ -62,6 +73,7 @@ export default function F3EmailMessageStatic() {
                     {localWithAt}
                     {domain ? (
                         <span
+                            ref={senderDomainRef}
                             data-f3-forensic-target="sender-domain"
                             className="f3-forensic-highlight f3-forensic-highlight--inline shrink-0"
                         >
@@ -97,6 +109,7 @@ export default function F3EmailMessageStatic() {
                     If you don&apos;t recognize this activity, secure your
                     account{" "}
                     <strong
+                        ref={pressureRef}
                         className="f3-forensic-highlight f3-forensic-highlight--inline font-bold text-white/[0.88]"
                         data-f3-forensic-target="pressure"
                     >
@@ -114,6 +127,7 @@ export default function F3EmailMessageStatic() {
                     }}
                 >
                     <span
+                        ref={ctaRef}
                         className="f3-forensic-highlight--cta-ring pointer-events-none inline-flex rounded-[10px]"
                         data-f3-forensic-target="cta"
                     >

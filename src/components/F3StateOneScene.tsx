@@ -9,12 +9,18 @@ gsap.registerPlugin(ScrollTrigger);
 
 export type F3StateOneSceneProps = Readonly<{
     sceneHeightClassName?: string;
+    labRange?: F3PhishingEmailProps["labRange"];
     debugOverrides?: F3PhishingEmailProps["debugOverrides"];
+    forensicLayouts?: F3PhishingEmailProps["forensicLayouts"];
+    forensicEditor?: F3PhishingEmailProps["forensicEditor"];
 }>;
 
 export default function F3StateOneScene({
     sceneHeightClassName,
+    labRange,
     debugOverrides,
+    forensicLayouts,
+    forensicEditor,
 }: F3StateOneSceneProps) {
     const sceneRef = useRef<HTMLDivElement>(null);
     const [isSceneActive, setIsSceneActive] = useState(false);
@@ -88,7 +94,10 @@ export default function F3StateOneScene({
                         isSceneActive={isSceneActive}
                         hasReleased={hasReleased}
                         onSequenceRelease={handleSequenceRelease}
+                        labRange={labRange}
                         debugOverrides={debugOverrides}
+                        forensicLayouts={forensicLayouts}
+                        forensicEditor={forensicEditor}
                     />
                 </div>
             </div>

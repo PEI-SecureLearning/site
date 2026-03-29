@@ -23,3 +23,9 @@ export const F3_FORENSIC_LABELS = [
 export const F3_INTERVENTION_SLAB_SIMULATION_LINE = "This was a simulation.";
 export const F3_INTERVENTION_SLAB_REVIEW_LINE =
     "Review what you missed, then complete the 90-second recovery step.";
+
+/** State 3 recovery tile copy. */
+export const F3_REFRESHER_EYEBROW = "Assigned training";
+export const F3_REFRESHER_TITLE = "Phishing recognition refresher";
+export const F3_REFRESHER_META = "90 sec";
+export const F3_REFRESHER_CTA = "Begin training";

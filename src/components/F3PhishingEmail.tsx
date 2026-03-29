@@ -22,19 +22,29 @@ import {
     F3_SENDER_EMAIL,
     F3_SUBJECT_LINE,
 } from "./f3PhishingCopy";
+import {
+    F3_FORENSIC_LAYOUTS,
+    type F3ForensicLayoutSet,
+    type F3ForensicOverlayEditor,
+} from "./F3ForensicOverlay";
 import F3MailReaderChrome from "./F3MailReaderChrome";
 import F3NudgeArrow from "./F3NudgeArrow";
 import F3RemediationReaderPanel from "./F3RemediationReaderPanel";
-import F3RemediationSlab from "./F3RemediationSlab";
+import F3RemediationSlab, { type F3RemediationSlabDebugStage } from "./F3RemediationSlab";
 
 export type F3PhishingEmailProps = Readonly<{
     isSceneActive?: boolean;
     hasReleased?: boolean;
     onSequenceRelease?: () => void;
     onReviewActivity?: () => void;
+    labRange?: {
+        start: F3LabCheckpoint;
+        end: F3LabCheckpoint;
+    };
     debugOverrides?: Partial<{
         manualMode: boolean;
         phase: F3Phase;
+        transitionCheckpoint: F3TransitionCheckpoint;
         takeoverVisible: boolean;
         shellVisible: boolean;
         selectedActive: boolean;
@@ -48,7 +58,26 @@ export type F3PhishingEmailProps = Readonly<{
         arrowVisible: boolean;
         breatheCta: boolean;
     }>;
+    forensicLayouts?: F3ForensicLayoutSet;
+    forensicEditor?: F3ForensicOverlayEditor;
 }>;
+
+export type F3TransitionCheckpoint =
+    | "consequence-start"
+    | "verdict-recede"
+    | "seam"
+    | "slab-formed"
+    | "headline"
+    | "hold";
+
+export type F3LabCheckpoint =
+    | "absolute-beginning"
+    | "end-state1"
+    | "end-state2"
+    | "end-slab-entrance"
+    | "end-docking"
+    | "end-surface"
+    | "absolute-end";
 
 type F3Phase =
     | "idle"
@@ -57,6 +86,9 @@ type F3Phase =
     | "ready"
     | "consequence"
     | "remediationSlab"
+    | "remediationDocked"
+    | "remediationTransforming"
+    | "remediationTransformed"
     | "remediation"
     | "remediationSettled"
     | "sequenceComplete";
@@ -66,7 +98,7 @@ type F3DebugStepKey = Exclude<
             ? keyof T
             : never
         : never,
-    "manualMode" | "phase"
+    "manualMode" | "phase" | "transitionCheckpoint"
 >;
 
 const SUBJECT_LINE = F3_SUBJECT_LINE;
@@ -124,10 +156,38 @@ const CONSEQUENCE_CTA_LABEL = "What now?";
 /** Auto-advance if “What now?” is untouched (~2.85s after focus + timer start). */
 const CONSEQUENCE_AUTO_ADVANCE_MS = 2850;
 
-const CONSEQUENCE_EXIT_FADE_MS = 480;
-
-/** Readable dwell on the bridge card after State 2 before forensic email (ms). */
-const REMEDIATION_SLAB_DWELL_MS = 5000;
+const CONSEQUENCE_EXIT_HOLD_MS = 320;
+const CONSEQUENCE_EXIT_REVEAL_MS = 460;
+const CONSEQUENCE_EXIT_EASE = "power2.inOut";
+const CONSEQUENCE_MAIL_STAGE_DURATION_MS = 2500;
+const CONSEQUENCE_MAIL_STAGE_BACKDROP_RATIO = 0.92;
+const CONSEQUENCE_MAIL_STAGE_EASE = "sine.inOut";
+const CONSEQUENCE_DUST_PARTICLES = [
+    { left: "20%", top: "16%", size: 10, x: -46, y: -24, delay: 0.02 },
+    { left: "31%", top: "12%", size: 8, x: -24, y: -34, delay: 0.06 },
+    { left: "43%", top: "14%", size: 11, x: -12, y: -42, delay: 0.04 },
+    { left: "55%", top: "11%", size: 9, x: 14, y: -36, delay: 0.08 },
+    { left: "68%", top: "15%", size: 10, x: 36, y: -26, delay: 0.05 },
+    { left: "80%", top: "18%", size: 8, x: 48, y: -20, delay: 0.1 },
+    { left: "18%", top: "34%", size: 9, x: -52, y: -8, delay: 0.12 },
+    { left: "29%", top: "30%", size: 12, x: -30, y: -4, delay: 0.09 },
+    { left: "42%", top: "31%", size: 10, x: -14, y: 6, delay: 0.14 },
+    { left: "58%", top: "29%", size: 11, x: 18, y: 3, delay: 0.11 },
+    { left: "71%", top: "32%", size: 9, x: 34, y: 8, delay: 0.16 },
+    { left: "82%", top: "35%", size: 8, x: 50, y: 14, delay: 0.13 },
+    { left: "24%", top: "54%", size: 8, x: -38, y: 18, delay: 0.18 },
+    { left: "37%", top: "50%", size: 10, x: -18, y: 22, delay: 0.22 },
+    { left: "52%", top: "52%", size: 12, x: 8, y: 26, delay: 0.2 },
+    { left: "67%", top: "50%", size: 9, x: 28, y: 20, delay: 0.24 },
+    { left: "41%", top: "73%", size: 11, x: -14, y: 34, delay: 0.28 },
+    { left: "61%", top: "74%", size: 10, x: 20, y: 30, delay: 0.3 },
+] as const;
+const REMEDIATION_DOCK_TARGET_SELECTORS = [
+    "#f3-remediation-dock-target-desktop",
+    "#f3-remediation-dock-target-mobile",
+] as const;
+const REMEDIATION_RESKIN_START_DELAY_MS = 0;
+const REMEDIATION_RESKIN_DEBUG_SLOW_MULTIPLIER = 2.8;
 
 function usePrefersReducedMotion() {
     const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
@@ -238,17 +298,620 @@ function TypedLine({
     );
 }
 
+function clampNumber(value: number, min: number, max: number) {
+    return Math.min(Math.max(value, min), max);
+}
+
+function formatClipPoint(x: number, y: number) {
+    return `${x.toFixed(2)}px ${y.toFixed(2)}px`;
+}
+
+function buildSourceBlobClip(
+    sourceX: number,
+    sourceY: number,
+    radiusX: number,
+    radiusY: number
+) {
+    const points = [
+        [sourceX, sourceY - radiusY],
+        [sourceX + radiusX * 0.78, sourceY - radiusY * 0.42],
+        [sourceX + radiusX, sourceY + radiusY * 0.18],
+        [sourceX + radiusX * 0.5, sourceY + radiusY],
+        [sourceX - radiusX * 0.3, sourceY + radiusY * 0.88],
+        [sourceX - radiusX * 0.9, sourceY + radiusY * 0.2],
+        [sourceX - radiusX * 0.8, sourceY - radiusY * 0.48],
+    ];
+
+    return `polygon(${points
+        .map(([x, y]) => formatClipPoint(Math.max(0, x), Math.max(0, y)))
+        .join(", ")})`;
+}
+
+function buildLiquidEdgePoints(
+    ax: number,
+    ay: number,
+    bx: number,
+    by: number,
+    amplitude: number,
+    phase: number,
+    width: number,
+    height: number
+) {
+    const dx = bx - ax;
+    const dy = by - ay;
+    const length = Math.hypot(dx, dy) || 1;
+    const nx = dy / length;
+    const ny = -dx / length;
+    const fractions = [0.06, 0.14, 0.24, 0.36, 0.5, 0.64, 0.78, 0.9];
+
+    return fractions.map((fraction, index) => {
+        const wobble =
+            0.18 +
+            0.46 * Math.sin(phase + index * 0.92) +
+            0.24 * Math.sin(phase * 0.58 + index * 1.46) +
+            0.14 * Math.sin(phase * 1.18 + index * 0.76);
+        const offset = amplitude * wobble;
+        const baseX = ax + dx * fraction;
+        const baseY = ay + dy * fraction;
+
+        return [
+            clampNumber(baseX + nx * offset, 0, width),
+            clampNumber(baseY + ny * offset, 0, height),
+        ] as const;
+    });
+}
+
+function buildLiquidRevealGeometry(
+    width: number,
+    height: number,
+    sourceX: number,
+    sourceY: number,
+    progress: number
+) {
+    const resolvedWidth = Math.max(width, 1);
+    const resolvedHeight = Math.max(height, 1);
+    const progressClamped = clampNumber(progress, 0, 1);
+    const diagonalRatio = resolvedWidth / resolvedHeight;
+    const sourceMetric = sourceX + diagonalRatio * sourceY;
+    const startMetric = Math.max(20, sourceMetric - 18);
+    const endMetric = resolvedWidth * 2 + 30;
+    const revealMetric = startMetric + progressClamped * (endMetric - startMetric);
+    const liquidStrength =
+        Math.min(resolvedWidth, resolvedHeight) *
+        (0.04 + 0.052 * Math.sin(progressClamped * Math.PI));
+    const phase = progressClamped * 8.2;
+
+    if (progressClamped < 0.085) {
+        const radiusX = 14 + progressClamped * resolvedWidth * 0.09;
+        const radiusY = 16 + progressClamped * resolvedHeight * 0.11;
+        return {
+            clipPath: buildSourceBlobClip(sourceX, sourceY, radiusX, radiusY),
+            edgeCenterX: sourceX,
+            edgeCenterY: sourceY,
+            edgeAngle: -24,
+            edgeLength: Math.max(92, radiusX * 2.6),
+            edgeThickness: Math.max(108, radiusY * 3.7),
+            edgeOpacity: 0.38,
+        };
+    }
+
+    if (revealMetric <= resolvedWidth) {
+        const topX = clampNumber(revealMetric, 0, resolvedWidth);
+        const leftY = clampNumber(revealMetric / diagonalRatio, 0, resolvedHeight);
+        const edgePoints = buildLiquidEdgePoints(
+            topX,
+            0,
+            0,
+            leftY,
+            liquidStrength,
+            phase,
+            resolvedWidth,
+            resolvedHeight
+        );
+        const polygonPoints = [
+            [0, 0],
+            [topX, 0],
+            ...edgePoints,
+            [0, leftY],
+        ];
+
+        return {
+            clipPath: `polygon(${polygonPoints
+                .map(([x, y]) => formatClipPoint(x, y))
+                .join(", ")})`,
+            edgeCenterX: topX * 0.5,
+            edgeCenterY: leftY * 0.5,
+            edgeAngle: (Math.atan2(leftY, -topX || -1) * 180) / Math.PI,
+            edgeLength: Math.max(110, Math.hypot(topX, leftY) * 1.2),
+            edgeThickness:
+                Math.max(138, Math.min(resolvedWidth, resolvedHeight) * 0.26),
+            edgeOpacity: 0.34 - progressClamped * 0.06,
+        };
+    }
+
+    const rightY = clampNumber(
+        (revealMetric - resolvedWidth) / diagonalRatio,
+        0,
+        resolvedHeight
+    );
+    const bottomX = clampNumber(revealMetric - resolvedWidth, 0, resolvedWidth);
+    const edgePoints = buildLiquidEdgePoints(
+        resolvedWidth,
+        rightY,
+        bottomX,
+        resolvedHeight,
+        liquidStrength,
+        phase,
+        resolvedWidth,
+        resolvedHeight
+    );
+    const polygonPoints = [
+        [0, 0],
+        [resolvedWidth, 0],
+        [resolvedWidth, rightY],
+        ...edgePoints,
+        [bottomX, resolvedHeight],
+        [0, resolvedHeight],
+    ];
+
+    return {
+        clipPath: `polygon(${polygonPoints
+            .map(([x, y]) => formatClipPoint(x, y))
+            .join(", ")})`,
+        edgeCenterX: (resolvedWidth + bottomX) * 0.5,
+        edgeCenterY: (rightY + resolvedHeight) * 0.5,
+        edgeAngle:
+            (Math.atan2(resolvedHeight - rightY, bottomX - resolvedWidth || -1) *
+                180) /
+            Math.PI,
+        edgeLength: Math.max(
+            110,
+            Math.hypot(resolvedWidth - bottomX, resolvedHeight - rightY) * 1.24
+        ),
+        edgeThickness:
+            Math.max(144, Math.min(resolvedWidth, resolvedHeight) * 0.27),
+        edgeOpacity: 0.31 - (progressClamped - 0.5) * 0.12,
+    };
+}
+
+function F3ReskinnedMailContent({
+    forensicLayouts,
+    forensicEditor,
+}: Readonly<{
+    forensicLayouts?: F3ForensicLayoutSet;
+    forensicEditor?: F3ForensicOverlayEditor;
+}>) {
+    return (
+        <div className="absolute inset-0 overflow-hidden rounded-[22px]">
+            <div className="shrink-0 px-3 pt-0.5 pb-0 opacity-0 md:px-5 lg:px-6" aria-hidden>
+                <F3MailReaderChrome />
+            </div>
+
+            <div className="relative min-h-0 min-w-0 flex-1 overflow-visible px-3 pb-8 pt-5 md:px-5 md:pb-10 md:pt-6 lg:px-6">
+                <F3RemediationReaderPanel
+                    forensicLayouts={forensicLayouts}
+                    forensicEditor={forensicEditor}
+                />
+            </div>
+        </div>
+    );
+}
+
+function F3ClientReskinOverlay({
+    phase,
+    prefersReducedMotion,
+    onComplete,
+    rightInset = 0,
+    sourceOrigin,
+    forensicLayouts,
+    forensicEditor,
+}: Readonly<{
+    phase: Extract<F3Phase, "remediationTransforming" | "remediationTransformed" | "sequenceComplete">;
+    prefersReducedMotion: boolean;
+    onComplete: () => void;
+    rightInset?: number;
+    sourceOrigin: Readonly<{ x: number; y: number }>;
+    forensicLayouts?: F3ForensicLayoutSet;
+    forensicEditor?: F3ForensicOverlayEditor;
+}>) {
+    const rootRef = useRef<HTMLDivElement>(null);
+    const panelRef = useRef<HTMLDivElement>(null);
+    const mineralRef = useRef<HTMLDivElement>(null);
+    const sourcePulseRef = useRef<HTMLDivElement>(null);
+    const sweepRef = useRef<HTMLDivElement>(null);
+    const sweepWakeRef = useRef<HTMLDivElement>(null);
+    const sweepBodyRef = useRef<HTMLDivElement>(null);
+    const sweepLipRef = useRef<HTMLDivElement>(null);
+    const sweepGrainRef = useRef<HTMLDivElement>(null);
+    const glossRef = useRef<HTMLDivElement>(null);
+
+    useLayoutEffect(() => {
+        const root = rootRef.current;
+        const panel = panelRef.current;
+        const mineral = mineralRef.current;
+        const sourcePulse = sourcePulseRef.current;
+        const sweep = sweepRef.current;
+        const sweepWake = sweepWakeRef.current;
+        const sweepBody = sweepBodyRef.current;
+        const sweepLip = sweepLipRef.current;
+        const sweepGrain = sweepGrainRef.current;
+        const gloss = glossRef.current;
+        if (
+            !root ||
+            !panel ||
+            !mineral ||
+            !sourcePulse ||
+            !sweep ||
+            !sweepWake ||
+            !sweepBody ||
+            !sweepLip ||
+            !sweepGrain ||
+            !gloss
+        ) {
+            return;
+        }
+
+        const ctx = gsap.context(() => {
+            const rootRect = root.getBoundingClientRect();
+            const rootWidth = rootRect.width || 1;
+            const rootHeight = rootRect.height || 1;
+            const sourceX = Math.min(Math.max(sourceOrigin.x, 0), rootWidth);
+            const sourceY = Math.min(Math.max(sourceOrigin.y, 0), rootHeight);
+
+            const setFinalState = () => {
+                gsap.set(root, { opacity: 1 });
+                gsap.set(panel, {
+                    opacity: 1,
+                    clipPath: "inset(0% 0% 0% 0% round 22px)",
+                });
+                gsap.set(mineral, { opacity: 0.74 });
+                gsap.set(gloss, { opacity: 0.28 });
+                gsap.set(sourcePulse, { opacity: 0, scale: 2.4 });
+                gsap.set(sweep, {
+                    opacity: 0,
+                    x: rootWidth * 0.82,
+                    y: rootHeight * 0.74,
+                    rotate: -24,
+                });
+                gsap.set([sweepWake, sweepBody, sweepLip, sweepGrain], {
+                    xPercent: 0,
+                    yPercent: 0,
+                    opacity: (index: number) => [0.88, 0.56, 0.78, 0.42][index] ?? 1,
+                });
+            };
+
+            if (
+                prefersReducedMotion ||
+                phase === "remediationTransformed" ||
+                phase === "sequenceComplete"
+            ) {
+                setFinalState();
+                return;
+            }
+
+            const initialGeometry = buildLiquidRevealGeometry(
+                rootWidth,
+                rootHeight,
+                sourceX,
+                sourceY,
+                0.015
+            );
+
+            gsap.set(root, { opacity: 1 });
+            gsap.set(panel, {
+                opacity: 1,
+                clipPath: initialGeometry.clipPath,
+            });
+            gsap.set(mineral, { opacity: 0.16 });
+            gsap.set(gloss, { opacity: 0.08 });
+            gsap.set(sourcePulse, {
+                opacity: 0.42,
+                scale: 0.18,
+                x: sourceX,
+                y: sourceY,
+                xPercent: -50,
+                yPercent: -50,
+                force3D: true,
+            });
+            gsap.set(sweep, {
+                opacity: initialGeometry.edgeOpacity,
+                x: initialGeometry.edgeCenterX,
+                y: initialGeometry.edgeCenterY,
+                xPercent: -50,
+                yPercent: -50,
+                width: initialGeometry.edgeLength,
+                height: initialGeometry.edgeThickness,
+                rotate: initialGeometry.edgeAngle,
+                force3D: true,
+            });
+            gsap.set(sweepWake, { xPercent: -4, yPercent: 2, opacity: 0.88, force3D: true });
+            gsap.set(sweepBody, { xPercent: -2, yPercent: 1, opacity: 0.48, force3D: true });
+            gsap.set(sweepLip, { xPercent: 2, yPercent: -1, opacity: 0.46, force3D: true });
+            gsap.set(sweepGrain, { xPercent: 0, yPercent: 0, opacity: 0.34, force3D: true });
+
+            const revealState = { progress: 0.015 };
+            const renderReveal = () => {
+                const geometry = buildLiquidRevealGeometry(
+                    rootWidth,
+                    rootHeight,
+                    sourceX,
+                    sourceY,
+                    revealState.progress
+                );
+
+                gsap.set(panel, { clipPath: geometry.clipPath });
+                gsap.set(sweep, {
+                    x: geometry.edgeCenterX,
+                    y: geometry.edgeCenterY,
+                    width: geometry.edgeLength,
+                    height: geometry.edgeThickness,
+                    rotate: geometry.edgeAngle,
+                    opacity: clampNumber(geometry.edgeOpacity, 0, 0.58),
+                });
+            };
+
+            const tl = gsap.timeline({
+                defaults: { ease: "cubic-bezier(0.22, 1, 0.36, 1)" },
+                onComplete: () => {
+                    setFinalState();
+                    onComplete();
+                },
+            });
+
+            tl.to(
+                revealState,
+                {
+                    progress: 1,
+                    duration: 0.72 * REMEDIATION_RESKIN_DEBUG_SLOW_MULTIPLIER,
+                    ease: "cubic-bezier(0.22, 1, 0.36, 1)",
+                    onUpdate: renderReveal,
+                },
+                0
+            )
+                .to(
+                    sourcePulse,
+                    {
+                        opacity: 0,
+                        scale: 2.7,
+                        duration: 0.38 * REMEDIATION_RESKIN_DEBUG_SLOW_MULTIPLIER,
+                        ease: "power2.out",
+                    },
+                    0
+                )
+                .to(
+                    mineral,
+                    {
+                        opacity: 0.74,
+                        duration: 0.52 * REMEDIATION_RESKIN_DEBUG_SLOW_MULTIPLIER,
+                        ease: "power2.out",
+                    },
+                    0.04
+                )
+                .to(
+                    gloss,
+                    {
+                        opacity: 0.28,
+                        duration: 0.46 * REMEDIATION_RESKIN_DEBUG_SLOW_MULTIPLIER,
+                        ease: "power2.out",
+                    },
+                    0.08
+                )
+                .to(
+                    sweepWake,
+                    {
+                        xPercent: -14,
+                        yPercent: 5,
+                        opacity: 0.82,
+                        duration: 0.68 * REMEDIATION_RESKIN_DEBUG_SLOW_MULTIPLIER,
+                        ease: "none",
+                    },
+                    0
+                )
+                .to(
+                    sweepBody,
+                    {
+                        xPercent: -6,
+                        yPercent: 2,
+                        opacity: 0.5,
+                        duration: 0.64 * REMEDIATION_RESKIN_DEBUG_SLOW_MULTIPLIER,
+                        ease: "none",
+                    },
+                    0.02
+                )
+                .to(
+                    sweepLip,
+                    {
+                        xPercent: 8,
+                        yPercent: -2,
+                        opacity: 0.5,
+                        duration: 0.48 * REMEDIATION_RESKIN_DEBUG_SLOW_MULTIPLIER,
+                        ease: "power2.out",
+                    },
+                    0.06
+                )
+                .to(
+                    sweepGrain,
+                    {
+                        xPercent: -10,
+                        yPercent: 3,
+                        opacity: 0.32,
+                        duration: 0.72 * REMEDIATION_RESKIN_DEBUG_SLOW_MULTIPLIER,
+                        ease: "none",
+                    },
+                    0
+                )
+                .to(
+                    sweep,
+                    {
+                        opacity: 0,
+                        scaleX: 1.12,
+                        scaleY: 0.9,
+                        duration: 0.22 * REMEDIATION_RESKIN_DEBUG_SLOW_MULTIPLIER,
+                        ease: "power3.out",
+                    },
+                    0.52 * REMEDIATION_RESKIN_DEBUG_SLOW_MULTIPLIER
+                );
+        }, root);
+
+        return () => {
+            ctx.revert();
+        };
+    }, [onComplete, phase, prefersReducedMotion, sourceOrigin]);
+
+    return (
+        <div
+            ref={rootRef}
+            className="pointer-events-none absolute inset-y-0 left-0 z-[18] overflow-hidden rounded-[22px]"
+            style={{ right: `${rightInset}px` }}
+            aria-hidden
+        >
+            <div
+                ref={panelRef}
+                className="absolute inset-0 rounded-[22px]"
+                style={{
+                    background:
+                        "linear-gradient(180deg, rgba(30,28,36,0.992) 0%, rgba(22,20,27,0.996) 38%, rgba(15,13,18,1) 100%), radial-gradient(130% 88% at 10% 0%, rgba(110,100,138,0.06) 0%, rgba(67,60,88,0.028) 24%, rgba(255,255,255,0) 58%), radial-gradient(96% 92% at 100% 100%, rgba(84,76,110,0.06) 0%, rgba(39,35,52,0.024) 38%, rgba(255,255,255,0) 72%)",
+                    boxShadow:
+                        "0 24px 60px -28px rgba(0,0,0,0.46), 0 8px 22px -14px rgba(0,0,0,0.34), inset 0 0 0 1px rgba(255,255,255,0.014), inset 0 1px 0 rgba(255,255,255,0.016), inset 0 -18px 32px rgba(4,3,8,0.16)",
+                }}
+            >
+                <div
+                    ref={mineralRef}
+                    className="absolute inset-0 rounded-[22px]"
+                    style={{
+                        background:
+                            "radial-gradient(28rem 16rem at 18% 22%, rgba(168,155,208,0.08) 0%, rgba(98,88,127,0.036) 34%, rgba(255,255,255,0) 72%), radial-gradient(22rem 14rem at 76% 18%, rgba(136,124,175,0.048) 0%, rgba(80,72,104,0.022) 36%, rgba(255,255,255,0) 74%), radial-gradient(24rem 18rem at 34% 76%, rgba(96,84,132,0.058) 0%, rgba(60,52,82,0.024) 40%, rgba(255,255,255,0) 76%), radial-gradient(18rem 14rem at 84% 70%, rgba(122,111,160,0.042) 0%, rgba(63,56,86,0.018) 42%, rgba(255,255,255,0) 78%), repeating-linear-gradient(118deg, rgba(255,255,255,0.018) 0px, rgba(255,255,255,0.018) 1px, rgba(255,255,255,0) 8px, rgba(255,255,255,0) 18px), repeating-linear-gradient(24deg, rgba(255,255,255,0.012) 0px, rgba(255,255,255,0.012) 1px, rgba(255,255,255,0) 10px, rgba(255,255,255,0) 20px)",
+                        mixBlendMode: "soft-light",
+                        filter: "blur(0.8px)",
+                        maskImage:
+                            "linear-gradient(90deg, rgba(0,0,0,0.96) 0%, rgba(0,0,0,0.96) 92%, rgba(0,0,0,0.78) 96%, rgba(0,0,0,0.42) 99%, rgba(0,0,0,0) 100%)",
+                        WebkitMaskImage:
+                            "linear-gradient(90deg, rgba(0,0,0,0.96) 0%, rgba(0,0,0,0.96) 92%, rgba(0,0,0,0.78) 96%, rgba(0,0,0,0.42) 99%, rgba(0,0,0,0) 100%)",
+                        opacity: 0,
+                    }}
+                />
+                <div
+                    ref={glossRef}
+                    className="absolute inset-0 rounded-[22px]"
+                    style={{
+                        background:
+                            "linear-gradient(180deg, rgba(255,255,255,0.012) 0%, rgba(255,255,255,0.006) 18%, rgba(255,255,255,0.002) 34%, rgba(255,255,255,0) 52%), radial-gradient(86% 62% at 50% -2%, rgba(210,199,244,0.026) 0%, rgba(160,147,198,0.012) 34%, rgba(255,255,255,0) 68%), radial-gradient(68% 84% at 8% 100%, rgba(102,88,144,0.026) 0%, rgba(72,62,102,0.012) 34%, rgba(255,255,255,0) 66%)",
+                        mixBlendMode: "normal",
+                        filter: "blur(1px)",
+                        maskImage:
+                            "linear-gradient(90deg, rgba(0,0,0,0.94) 0%, rgba(0,0,0,0.94) 92%, rgba(0,0,0,0.7) 96%, rgba(0,0,0,0.3) 99%, rgba(0,0,0,0) 100%)",
+                        WebkitMaskImage:
+                            "linear-gradient(90deg, rgba(0,0,0,0.94) 0%, rgba(0,0,0,0.94) 92%, rgba(0,0,0,0.7) 96%, rgba(0,0,0,0.3) 99%, rgba(0,0,0,0) 100%)",
+                    }}
+                />
+                <div
+                    className="absolute inset-0 rounded-[22px]"
+                    style={{
+                        background:
+                            "linear-gradient(180deg, rgba(255,255,255,0.01) 0%, rgba(255,255,255,0.004) 16%, rgba(255,255,255,0.001) 32%, rgba(255,255,255,0) 54%), linear-gradient(180deg, rgba(255,255,255,0) 56%, rgba(10,8,14,0.014) 80%, rgba(4,3,8,0.052) 100%), radial-gradient(92% 68% at 50% 4%, rgba(255,255,255,0.014) 0%, rgba(255,255,255,0.004) 34%, rgba(255,255,255,0) 66%)",
+                        boxShadow:
+                            "inset 0 1px 14px rgba(255,255,255,0.006), inset 0 -14px 24px rgba(4,3,8,0.072)",
+                        filter: "blur(1.4px)",
+                        maskImage:
+                            "linear-gradient(90deg, rgba(0,0,0,0.94) 0%, rgba(0,0,0,0.94) 92%, rgba(0,0,0,0.68) 96%, rgba(0,0,0,0.28) 99%, rgba(0,0,0,0) 100%)",
+                        WebkitMaskImage:
+                            "linear-gradient(90deg, rgba(0,0,0,0.94) 0%, rgba(0,0,0,0.94) 92%, rgba(0,0,0,0.68) 96%, rgba(0,0,0,0.28) 99%, rgba(0,0,0,0) 100%)",
+                    }}
+                />
+                <F3ReskinnedMailContent
+                    forensicLayouts={forensicLayouts}
+                    forensicEditor={forensicEditor}
+                />
+            </div>
+            <div
+                ref={sourcePulseRef}
+                className="absolute h-24 w-24 rounded-full"
+                style={{
+                    background:
+                        "radial-gradient(circle, rgba(222,214,249,0.22) 0%, rgba(164,145,218,0.14) 24%, rgba(88,75,122,0.08) 46%, rgba(255,255,255,0) 74%)",
+                    filter: "blur(12px)",
+                }}
+            />
+            <div
+                ref={sweepRef}
+                className="absolute overflow-hidden rounded-[999px]"
+                style={{
+                    background:
+                        "linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(84,76,110,0.03) 12%, rgba(48,41,65,0.11) 32%, rgba(27,22,37,0.2) 50%, rgba(73,65,98,0.08) 70%, rgba(255,255,255,0) 90%), radial-gradient(circle at 18% 52%, rgba(190,176,227,0.07) 0%, rgba(145,132,183,0.032) 13%, rgba(255,255,255,0) 32%), radial-gradient(circle at 42% 44%, rgba(183,170,221,0.06) 0%, rgba(132,119,170,0.03) 12%, rgba(255,255,255,0) 30%), radial-gradient(circle at 68% 56%, rgba(178,165,216,0.06) 0%, rgba(120,108,158,0.028) 12%, rgba(255,255,255,0) 30%)",
+                    boxShadow:
+                        "inset 0 0 20px rgba(255,255,255,0.012), inset 0 -14px 22px rgba(10,8,16,0.16)",
+                    filter: "blur(26px) saturate(104%)",
+                    mixBlendMode: "screen",
+                    transformOrigin: "50% 50%",
+                }}
+            >
+                <div
+                    ref={sweepWakeRef}
+                    className="absolute inset-y-[12%] left-[3%] right-[24%] rounded-[inherit]"
+                    style={{
+                        background:
+                            "radial-gradient(circle at 18% 50%, rgba(188,176,224,0.08) 0%, rgba(144,132,181,0.035) 12%, rgba(255,255,255,0) 32%), radial-gradient(circle at 42% 60%, rgba(176,164,214,0.07) 0%, rgba(128,117,164,0.032) 12%, rgba(255,255,255,0) 30%), radial-gradient(circle at 68% 40%, rgba(182,170,219,0.07) 0%, rgba(129,118,166,0.03) 12%, rgba(255,255,255,0) 30%), linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(102,92,132,0.05) 24%, rgba(24,20,33,0.12) 60%, rgba(255,255,255,0) 100%)",
+                        filter: "blur(26px)",
+                        opacity: 0.9,
+                        mixBlendMode: "screen",
+                    }}
+                />
+                <div
+                    ref={sweepBodyRef}
+                    className="absolute inset-y-[20%] left-[18%] right-[10%] rounded-[inherit]"
+                    style={{
+                        background:
+                            "radial-gradient(circle at 14% 54%, rgba(174,162,212,0.07) 0%, rgba(255,255,255,0) 20%), radial-gradient(circle at 34% 42%, rgba(167,154,205,0.06) 0%, rgba(255,255,255,0) 18%), radial-gradient(circle at 58% 60%, rgba(159,147,197,0.058) 0%, rgba(255,255,255,0) 18%), radial-gradient(circle at 82% 46%, rgba(153,141,191,0.052) 0%, rgba(255,255,255,0) 16%)",
+                        filter: "blur(14px)",
+                        opacity: 0.56,
+                        mixBlendMode: "soft-light",
+                    }}
+                />
+                <div
+                    ref={sweepLipRef}
+                    className="absolute inset-y-[24%] right-[2%] w-[34%] rounded-[999px]"
+                    style={{
+                        background:
+                            "linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(198,187,232,0.04) 24%, rgba(223,215,247,0.1) 56%, rgba(255,255,255,0.018) 80%, rgba(255,255,255,0) 100%), radial-gradient(circle at 58% 50%, rgba(222,214,247,0.09) 0%, rgba(196,186,228,0.03) 18%, rgba(255,255,255,0) 48%)",
+                        filter: "blur(14px)",
+                        opacity: 0.78,
+                        mixBlendMode: "screen",
+                    }}
+                />
+                <div
+                    ref={sweepGrainRef}
+                    className="absolute inset-0 rounded-[inherit]"
+                    style={{
+                        background:
+                            "radial-gradient(circle at 16% 52%, rgba(210,200,243,0.08) 0%, rgba(255,255,255,0) 20%), radial-gradient(circle at 32% 44%, rgba(196,186,231,0.07) 0%, rgba(255,255,255,0) 18%), radial-gradient(circle at 50% 60%, rgba(191,180,226,0.064) 0%, rgba(255,255,255,0) 18%), radial-gradient(circle at 72% 48%, rgba(184,173,220,0.06) 0%, rgba(255,255,255,0) 18%), repeating-linear-gradient(96deg, rgba(255,255,255,0.03) 0px, rgba(255,255,255,0.03) 1px, rgba(255,255,255,0) 8px, rgba(255,255,255,0) 18px)",
+                        mixBlendMode: "soft-light",
+                        opacity: 0.34,
+                        filter: "blur(8px)",
+                    }}
+                />
+            </div>
+        </div>
+    );
+}
+
 export default function F3PhishingEmail({
     isSceneActive = false,
     hasReleased = false,
     onSequenceRelease,
     onReviewActivity,
+    labRange,
     debugOverrides,
+    forensicLayouts = F3_FORENSIC_LAYOUTS,
+    forensicEditor,
 }: F3PhishingEmailProps) {
     const prefersReducedMotion = usePrefersReducedMotion();
     const ctaAnchorRef = useRef<HTMLDivElement>(null);
     const ctaButtonRef = useRef<HTMLButtonElement>(null);
+    const clientSurfaceBoundsRef = useRef<HTMLDivElement>(null);
+    const clientSurfaceRightEdgeRef = useRef<HTMLElement>(null);
     const hasStartedRef = useRef(false);
+    const labStartAppliedRef = useRef(false);
+    const labAutoReleasedRef = useRef(false);
     const releaseNotifiedRef = useRef(false);
     const touchStartYRef = useRef<number | null>(null);
     const touchNudgedThisGestureRef = useRef(false);
@@ -266,6 +929,8 @@ export default function F3PhishingEmail({
     const lastWheelNudgeAtRef = useRef(0);
     const consequenceBackdropRef = useRef<HTMLDivElement>(null);
     const consequenceCopyRef = useRef<HTMLDivElement>(null);
+    const consequenceAtmosphereRef = useRef<HTMLDivElement>(null);
+    const consequenceDustParticleRefs = useRef<(HTMLSpanElement | null)[]>([]);
     const consequenceHeadlineLineARef = useRef<HTMLSpanElement>(null);
     const consequenceHeadlineLineBRef = useRef<HTMLSpanElement>(null);
     const consequenceSubRef = useRef<HTMLParagraphElement>(null);
@@ -287,11 +952,41 @@ export default function F3PhishingEmail({
     const [arrowVisible, setArrowVisible] = useState(false);
     const [arrowCycle, setArrowCycle] = useState(0);
     const [breatheCta, setBreatheCta] = useState(false);
+    const [showConsequenceLayer, setShowConsequenceLayer] = useState(false);
     const [overscrollGlowPortalReady, setOverscrollGlowPortalReady] = useState(false);
     const [slabPortalReady, setSlabPortalReady] = useState(false);
+    const [clientSurfaceRightInset, setClientSurfaceRightInset] = useState(0);
+    const [clientSurfaceSourceOrigin, setClientSurfaceSourceOrigin] = useState<{
+        x: number;
+        y: number;
+    }>({ x: 34, y: 34 });
     const manualMode = debugOverrides?.manualMode ?? false;
+    const hasLabRange = labRange !== undefined;
     const resolvedPhase: F3Phase =
         manualMode && debugOverrides?.phase !== undefined ? debugOverrides.phase : phase;
+    const transitionCheckpoint = manualMode ? debugOverrides?.transitionCheckpoint : undefined;
+    const manualSlabStage: F3RemediationSlabDebugStage | undefined =
+        transitionCheckpoint === "seam"
+            ? "seam"
+            : transitionCheckpoint === "slab-formed"
+              ? "grow"
+              : transitionCheckpoint === "headline"
+                ? "headline"
+                : transitionCheckpoint === "hold"
+                  ? "hold"
+                  : undefined;
+    const labSlabStage: F3RemediationSlabDebugStage | undefined =
+        hasLabRange && resolvedPhase === "remediationSlab"
+            ? labRange.start === "end-slab-entrance" && labRange.end === "end-slab-entrance"
+                ? "hold"
+                : undefined
+            : hasLabRange &&
+                labRange.start === "end-docking" &&
+                resolvedPhase === "remediationDocked"
+              ? "docked"
+              : undefined;
+    const shouldSkipTypingAnimation =
+        prefersReducedMotion || (hasLabRange && labRange.start !== "absolute-beginning") || manualMode;
     const selectedRowStartMs = SHELL_START_MS + SHELL_DURATION_MS;
     const metaStartMs = selectedRowStartMs + SELECTED_ROW_DURATION_MS;
     const subjectStartMs = metaStartMs + META_DURATION_MS;
@@ -442,6 +1137,102 @@ export default function F3PhishingEmail({
         setSlabPortalReady(true);
     }, []);
 
+    useLayoutEffect(() => {
+        const boundsEl = clientSurfaceBoundsRef.current;
+        const rightEdgeEl = clientSurfaceRightEdgeRef.current;
+        if (!boundsEl || !rightEdgeEl) return;
+
+        const updateBounds = () => {
+            const boundsRect = boundsEl.getBoundingClientRect();
+            const rightRect = rightEdgeEl.getBoundingClientRect();
+            const nextInset = Math.max(0, boundsRect.right - rightRect.right);
+            const dockTarget = REMEDIATION_DOCK_TARGET_SELECTORS.map((selector) =>
+                globalThis.document.querySelector<HTMLElement>(selector)
+            ).find((element) => {
+                if (!element) return false;
+                const rect = element.getBoundingClientRect();
+                return rect.width > 0 && rect.height > 0;
+            });
+            const dockRect = dockTarget?.getBoundingClientRect();
+            setClientSurfaceRightInset(nextInset);
+            if (dockRect != null) {
+                setClientSurfaceSourceOrigin({
+                    x: clampNumber(
+                        dockRect.left + dockRect.width / 2 - boundsRect.left,
+                        0,
+                        Math.max(boundsRect.width - nextInset, 0)
+                    ),
+                    y: clampNumber(
+                        dockRect.top + dockRect.height / 2 - boundsRect.top,
+                        0,
+                        boundsRect.height
+                    ),
+                });
+            }
+        };
+
+        updateBounds();
+
+        const resizeObserver =
+            typeof ResizeObserver !== "undefined"
+                ? new ResizeObserver(() => {
+                      updateBounds();
+                  })
+                : null;
+
+        resizeObserver?.observe(boundsEl);
+        resizeObserver?.observe(rightEdgeEl);
+        REMEDIATION_DOCK_TARGET_SELECTORS.forEach((selector) => {
+            const element = globalThis.document.querySelector<HTMLElement>(selector);
+            if (element) {
+                resizeObserver?.observe(element);
+            }
+        });
+        globalThis.window.addEventListener("resize", updateBounds);
+
+        return () => {
+            resizeObserver?.disconnect();
+            globalThis.window.removeEventListener("resize", updateBounds);
+        };
+    }, []);
+
+    useEffect(() => {
+        if (!hasLabRange || labStartAppliedRef.current) return;
+
+        if (labRange.start === "absolute-beginning") {
+            labStartAppliedRef.current = true;
+            return;
+        }
+
+        hasStartedRef.current = true;
+        setTakeoverVisible(true);
+        setShellVisible(true);
+        setSelectedActive(true);
+        setMetaVisible(true);
+        setSubjectActive(true);
+        setEventActive(true);
+        setDetailsVisible(true);
+        setActionActive(true);
+        setCtaVisible(true);
+
+        if (labRange.start === "end-state1") {
+            setPhase("ready");
+        } else if (labRange.start === "end-state2") {
+            setShowConsequenceLayer(true);
+            setPhase("consequence");
+        } else if (labRange.start === "end-slab-entrance") {
+            setPhase("remediationSlab");
+        } else if (labRange.start === "end-docking") {
+            setPhase("remediationDocked");
+        } else if (labRange.start === "end-surface") {
+            setPhase("remediationTransformed");
+        } else if (labRange.start === "absolute-end") {
+            setPhase("sequenceComplete");
+        }
+
+        labStartAppliedRef.current = true;
+    }, [hasLabRange, labRange]);
+
     useEffect(() => {
         if (!isSceneActive || hasReleased || hasStartedRef.current) return;
 
@@ -518,41 +1309,89 @@ export default function F3PhishingEmail({
         const mailStage = mailStageRef.current;
         const backdrop = consequenceBackdropRef.current;
         const copy = consequenceCopyRef.current;
+        const atmosphere = consequenceAtmosphereRef.current;
+        const dustParticles = consequenceDustParticleRefs.current.filter(
+            (particle): particle is HTMLSpanElement => particle !== null
+        );
+        const lineA = consequenceHeadlineLineARef.current;
+        const lineB = consequenceHeadlineLineBRef.current;
+        const sub = consequenceSubRef.current;
+        const btn = whatNowButtonRef.current;
 
-        if (!mailStage || !backdrop || !copy) {
+        if (!mailStage || !backdrop || !copy || !atmosphere || !lineA || !lineB || !sub || !btn) {
+            setShowConsequenceLayer(false);
             handoffToRemediationSlab();
             return;
         }
 
         if (prefersReducedMotion) {
-            gsap.set(mailStage, { clearProps: "scale,filter,opacity,transform" });
-            gsap.set(copy, { clearProps: "scale,opacity,transform,z" });
-            gsap.set(backdrop, { opacity: 0 });
+            setShowConsequenceLayer(false);
             handoffToRemediationSlab();
             return;
         }
 
-        const exitDur = CONSEQUENCE_EXIT_FADE_MS / 1000;
-        gsap
-            .timeline({
-                defaults: { duration: exitDur, ease: "power2.inOut" },
+        const verdictGroup = [lineA, lineB, sub, btn];
+        gsap.set(atmosphere, {
+            opacity: 0,
+            scale: 0.94,
+            y: 6,
+            filter: "blur(24px)",
+            transformOrigin: "50% 40%",
+            force3D: true,
+        });
+        if (dustParticles.length > 0) {
+            gsap.set(dustParticles, {
+                opacity: 0,
+                scale: 0.35,
+                x: 0,
+                y: 0,
+                filter: "blur(4px)",
+                force3D: true,
+            });
+        }
+        const tl = gsap.timeline({
+                defaults: { ease: CONSEQUENCE_EXIT_EASE },
                 onComplete: () => {
-                    gsap.set(mailStage, { clearProps: "scale,filter,opacity,transform" });
-                    gsap.set(copy, { clearProps: "scale,opacity,transform,z" });
-                    handoffToRemediationSlab();
+                    gsap.set(verdictGroup, {
+                        clearProps: "opacity,filter,transform,scale,y,z,transformOrigin,force3D",
+                    });
+                    gsap.set(copy, {
+                        clearProps: "opacity,filter,transform,scale,y,z,transformOrigin,force3D",
+                    });
+                    gsap.set(atmosphere, {
+                        clearProps: "opacity,filter,transform,scale,y,transformOrigin,force3D",
+                    });
+                    if (dustParticles.length > 0) {
+                        gsap.set(dustParticles, {
+                            clearProps: "opacity,filter,transform,scale,x,y,force3D",
+                        });
+                    }
+                    gsap.set(backdrop, { clearProps: "opacity" });
+                    setShowConsequenceLayer(false);
                 },
             })
-            .to(backdrop, { opacity: 0 }, 0)
+        tl
             .to(
-                copy,
+                {},
                 {
-                    opacity: 0,
-                    scale: 0.97,
-                    z: -20,
-                    transformOrigin: "50% 55%",
-                    force3D: true,
+                    duration: CONSEQUENCE_EXIT_HOLD_MS / 1000,
+                    onComplete: () => {
+                        handoffToRemediationSlab();
+                    },
                 },
                 0
+            )
+            .to(
+                backdrop,
+                {
+                    opacity: 0,
+                    duration:
+                        (CONSEQUENCE_MAIL_STAGE_DURATION_MS *
+                            CONSEQUENCE_MAIL_STAGE_BACKDROP_RATIO) /
+                        1000,
+                    ease: CONSEQUENCE_MAIL_STAGE_EASE,
+                },
+                ">"
             )
             .to(
                 mailStage,
@@ -561,21 +1400,107 @@ export default function F3PhishingEmail({
                     z: 0,
                     filter: "blur(0px)",
                     force3D: true,
+                    duration: CONSEQUENCE_MAIL_STAGE_DURATION_MS / 1000,
+                    ease: CONSEQUENCE_MAIL_STAGE_EASE,
                 },
-                0
+                "<"
+            )
+            .to(
+                verdictGroup,
+                {
+                    opacity: 0,
+                    scale: 0.978,
+                    y: -10,
+                    z: 18,
+                    filter: "blur(18px)",
+                    transformOrigin: "50% 55%",
+                    force3D: true,
+                    duration: (CONSEQUENCE_EXIT_REVEAL_MS * 1.22) / 1000,
+                    stagger: 0.08,
+                },
+                "<"
+            )
+            .to(
+                copy,
+                {
+                    opacity: 0,
+                    scale: 0.988,
+                    z: 22,
+                    filter: "blur(22px)",
+                    transformOrigin: "50% 55%",
+                    force3D: true,
+                    duration: (CONSEQUENCE_EXIT_REVEAL_MS * 1.28) / 1000,
+                },
+                "<"
+            )
+            .to(
+                atmosphere,
+                {
+                    opacity: 0.84,
+                    scale: 1.06,
+                    y: -12,
+                    filter: "blur(36px)",
+                    force3D: true,
+                    duration: (CONSEQUENCE_EXIT_REVEAL_MS * 1.28) / 1000,
+                },
+                "<"
             );
+
+        if (dustParticles.length > 0) {
+            dustParticles.forEach((particle, index) => {
+                const particleMotion = CONSEQUENCE_DUST_PARTICLES[index];
+                if (!particleMotion) return;
+
+                gsap.timeline({ defaults: { ease: "power2.out" } })
+                    .to(
+                        particle,
+                        {
+                            opacity: 0.88,
+                            scale: 1,
+                            filter: "blur(1.6px)",
+                            duration: 0.12,
+                        },
+                        CONSEQUENCE_EXIT_HOLD_MS / 1000 + particleMotion.delay
+                    )
+                    .to(
+                        particle,
+                        {
+                            opacity: 0,
+                            x: particleMotion.x,
+                            y: particleMotion.y,
+                            scale: 1.72,
+                            filter: "blur(10px)",
+                            duration: (CONSEQUENCE_EXIT_REVEAL_MS * 1.08) / 1000,
+                            ease: "power1.out",
+                        },
+                        `>+=0.02`
+                    );
+            });
+        }
     }, [clearConsequenceAutoAdvance, prefersReducedMotion]);
 
+    const handleRemediationDockComplete = useCallback(() => {
+        setPhase((current) => (current === "remediationSlab" ? "remediationDocked" : current));
+    }, []);
+
+    const handleReskinTransformComplete = useCallback(() => {
+        setPhase((current) =>
+            current === "remediationTransforming" ? "remediationTransformed" : current
+        );
+    }, []);
+
     useEffect(() => {
-        if (resolvedPhase !== "remediationSlab") return;
-        if (manualMode) return;
+        if (resolvedPhase !== "remediationDocked") return;
+        if (manualMode || (hasLabRange && labRange.end === "end-docking")) return;
 
         const timeoutId = globalThis.window.setTimeout(() => {
-            setPhase("remediation");
-        }, REMEDIATION_SLAB_DWELL_MS);
+            setPhase((current) =>
+                current === "remediationDocked" ? "remediationTransforming" : current
+            );
+        }, REMEDIATION_RESKIN_START_DELAY_MS);
 
         return () => globalThis.window.clearTimeout(timeoutId);
-    }, [manualMode, resolvedPhase]);
+    }, [hasLabRange, labRange, manualMode, resolvedPhase]);
 
     const requestSequenceRelease = useCallback(() => {
         if (releaseNotifiedRef.current) return;
@@ -586,31 +1511,81 @@ export default function F3PhishingEmail({
 
     useLayoutEffect(() => {
         if (resolvedPhase !== "remediation") return;
+        const mailStage = mailStageRef.current;
+        if (mailStage) {
+            gsap.to(mailStage, {
+                scale: 1,
+                z: 0,
+                filter: "blur(0px)",
+                duration: 0.28,
+                ease: "power2.out",
+                force3D: true,
+            });
+        }
         const frameId = globalThis.window.requestAnimationFrame(() => {
             setPhase("remediationSettled");
         });
         return () => globalThis.window.cancelAnimationFrame(frameId);
     }, [resolvedPhase]);
 
+    useEffect(() => {
+        if (!hasLabRange || labRange.end !== "absolute-end") return;
+        if (
+            resolvedPhase !== "remediationDocked" &&
+            resolvedPhase !== "remediationTransformed" &&
+            resolvedPhase !== "remediationSettled"
+        ) {
+            return;
+        }
+        if (labAutoReleasedRef.current) return;
+
+        const timeoutId = globalThis.window.setTimeout(() => {
+            labAutoReleasedRef.current = true;
+            requestSequenceRelease();
+        }, 240);
+
+        return () => globalThis.window.clearTimeout(timeoutId);
+    }, [hasLabRange, labRange, requestSequenceRelease, resolvedPhase]);
+
     useLayoutEffect(() => {
         if (resolvedPhase !== "consequence") return;
 
         exitConsequenceLockedRef.current = false;
+        setShowConsequenceLayer(true);
 
         const mailStage = mailStageRef.current;
         const backdrop = consequenceBackdropRef.current;
         const copy = consequenceCopyRef.current;
+        const atmosphere = consequenceAtmosphereRef.current;
         const lineA = consequenceHeadlineLineARef.current;
         const lineB = consequenceHeadlineLineBRef.current;
         const sub = consequenceSubRef.current;
         const btn = whatNowButtonRef.current;
         if (!mailStage || !backdrop || !copy || !lineA || !lineB || !sub || !btn) return;
+        const verdictGroup = [lineA, lineB, sub, btn];
 
         clearConsequenceAutoAdvance();
         consequenceEnterTimelineRef.current?.kill();
 
+        if (atmosphere) {
+            gsap.set(atmosphere, {
+                opacity: 0,
+                scale: 0.94,
+                y: 6,
+                filter: "blur(24px)",
+                transformOrigin: "50% 40%",
+                force3D: true,
+            });
+        }
+
         const scheduleAutoAdvance = () => {
-            if (manualMode) return;
+            if (
+                manualMode ||
+                (hasLabRange &&
+                    (labRange.end === "end-state2" || labRange.start === "end-state2"))
+            ) {
+                return;
+            }
             clearConsequenceAutoAdvance();
             consequenceAutoAdvanceRef.current = globalThis.window.setTimeout(() => {
                 consequenceAutoAdvanceRef.current = null;
@@ -628,11 +1603,31 @@ export default function F3PhishingEmail({
             force3D: true,
         };
 
-        if (manualMode) {
+        if (manualMode || (hasLabRange && labRange.start === "end-state2")) {
+            const isStartCheckpoint =
+                transitionCheckpoint === undefined || transitionCheckpoint === "consequence-start";
+            const isRecedeCheckpoint = transitionCheckpoint === "verdict-recede";
+
             gsap.set(mailStage, mailStageEnd);
             gsap.set(backdrop, { opacity: 0.52 });
-            gsap.set(copy, { scale: 1, z: 72, transformOrigin: "50% 55%", force3D: true });
-            gsap.set([lineA, lineB, sub, btn], { opacity: 1, scale: 1 });
+            gsap.set(copy, {
+                opacity: isStartCheckpoint ? 1 : isRecedeCheckpoint ? 0.42 : 0,
+                scale: isStartCheckpoint ? 1 : 0.965,
+                y: isStartCheckpoint ? 0 : 10,
+                z: isStartCheckpoint ? 72 : 28,
+                filter: isStartCheckpoint ? "blur(0px)" : "blur(8px)",
+                transformOrigin: "50% 55%",
+                force3D: true,
+            });
+            gsap.set(verdictGroup, {
+                opacity: isStartCheckpoint ? 1 : isRecedeCheckpoint ? 0.34 : 0,
+                scale: isStartCheckpoint ? 1 : 0.96,
+                y: isStartCheckpoint ? 0 : 10,
+                z: isStartCheckpoint ? 0 : 24,
+                filter: isStartCheckpoint ? "blur(0px)" : "blur(8px)",
+                transformOrigin: "50% 55%",
+                force3D: true,
+            });
             return undefined;
         }
 
@@ -648,7 +1643,7 @@ export default function F3PhishingEmail({
             };
         }
 
-        const easeUnified = "sine.inOut";
+        const easeUnified = CONSEQUENCE_MAIL_STAGE_EASE;
 
         gsap.set(backdrop, { opacity: 0 });
         gsap.set(copy, {
@@ -672,9 +1667,17 @@ export default function F3PhishingEmail({
         });
         consequenceEnterTimelineRef.current = tl;
 
-        const pushDuration = 2.5;
+        const pushDuration = CONSEQUENCE_MAIL_STAGE_DURATION_MS / 1000;
         tl.to(mailStage, { ...mailStageEnd, duration: pushDuration, ease: easeUnified }, 0);
-        tl.to(backdrop, { opacity: 0.52, duration: pushDuration * 0.92, ease: easeUnified }, 0);
+        tl.to(
+            backdrop,
+            {
+                opacity: 0.52,
+                duration: pushDuration * CONSEQUENCE_MAIL_STAGE_BACKDROP_RATIO,
+                ease: easeUnified,
+            },
+            0
+        );
         tl.to(
             copy,
             {
@@ -728,9 +1731,12 @@ export default function F3PhishingEmail({
     }, [
         clearConsequenceAutoAdvance,
         exitConsequence,
+        hasLabRange,
+        labRange,
         manualMode,
         prefersReducedMotion,
         resolvedPhase,
+        transitionCheckpoint,
     ]);
 
     useEffect(() => {
@@ -749,8 +1755,11 @@ export default function F3PhishingEmail({
             event.preventDefault();
 
             const forward = event.deltaY > 0;
+            const canReleaseFromDock =
+                resolvedPhase === "remediationTransformed" ||
+                resolvedPhase === "remediationSettled";
 
-            if (resolvedPhase === "remediationSettled" && forward) {
+            if (canReleaseFromDock && forward) {
                 clearWheelGestureTimer();
                 wheelGestureIdleTimerRef.current = globalThis.window.setTimeout(() => {
                     wheelNudgedThisGestureRef.current = false;
@@ -823,8 +1832,11 @@ export default function F3PhishingEmail({
 
             const isForwardKey =
                 event.key === "ArrowDown" || event.key === "PageDown" || event.key === " ";
+            const canReleaseFromDock =
+                resolvedPhase === "remediationTransformed" ||
+                resolvedPhase === "remediationSettled";
 
-            if (resolvedPhase === "remediationSettled" && isForwardKey) {
+            if (canReleaseFromDock && isForwardKey) {
                 requestSequenceRelease();
                 return;
             }
@@ -841,8 +1853,11 @@ export default function F3PhishingEmail({
 
         const handleTouchMove = (event: TouchEvent) => {
             event.preventDefault();
+            const canReleaseFromDock =
+                resolvedPhase === "remediationTransformed" ||
+                resolvedPhase === "remediationSettled";
 
-            if (resolvedPhase === "remediationSettled") {
+            if (canReleaseFromDock) {
                 const currentY = event.touches[0]?.clientY;
                 if (currentY == null || touchStartYRef.current == null) return;
 
@@ -902,6 +1917,7 @@ export default function F3PhishingEmail({
 
     const handleReviewActivity = () => {
         if (manualMode) return;
+        setShowConsequenceLayer(true);
         setPhase("consequence");
         elasticAnimRef.current?.cancel();
         elasticAnimRef.current = null;
@@ -911,22 +1927,46 @@ export default function F3PhishingEmail({
         setBreatheCta(false);
         onReviewActivity?.();
     };
-    const resolvedTakeoverVisible = takeoverVisible;
-    const resolvedShellVisible = shellVisible;
-    const resolvedSelectedActive = selectedActive;
-    const resolvedMetaVisible = metaVisible;
-    const resolvedSubjectActive = subjectActive;
-    const resolvedEventActive = eventActive;
-    const resolvedDetailsVisible = detailsVisible;
-    const resolvedActionActive = actionActive;
-    const resolvedCtaVisible = ctaVisible;
-    const resolvedArrowVisible = arrowVisible;
-    const resolvedBreatheCta = breatheCta;
+    const resolvedTakeoverVisible = manualMode
+        ? debugOverrides?.takeoverVisible ?? takeoverVisible
+        : takeoverVisible;
+    const resolvedShellVisible = manualMode
+        ? debugOverrides?.shellVisible ?? shellVisible
+        : shellVisible;
+    const resolvedSelectedActive = manualMode
+        ? debugOverrides?.selectedActive ?? selectedActive
+        : selectedActive;
+    const resolvedMetaVisible = manualMode
+        ? debugOverrides?.metaVisible ?? metaVisible
+        : metaVisible;
+    const resolvedSubjectActive = manualMode
+        ? debugOverrides?.subjectActive ?? subjectActive
+        : subjectActive;
+    const resolvedEventActive = manualMode
+        ? debugOverrides?.eventActive ?? eventActive
+        : eventActive;
+    const resolvedDetailsVisible = manualMode
+        ? debugOverrides?.detailsVisible ?? detailsVisible
+        : detailsVisible;
+    const resolvedActionActive = manualMode
+        ? debugOverrides?.actionActive ?? actionActive
+        : actionActive;
+    const resolvedCtaVisible = manualMode
+        ? debugOverrides?.ctaVisible ?? ctaVisible
+        : ctaVisible;
+    const resolvedArrowVisible = manualMode
+        ? debugOverrides?.arrowVisible ?? arrowVisible
+        : arrowVisible;
+    const resolvedBreatheCta = manualMode
+        ? debugOverrides?.breatheCta ?? breatheCta
+        : breatheCta;
 
-    const showRemediationUi =
-        resolvedPhase === "remediation" ||
-        resolvedPhase === "remediationSettled" ||
+    const showTransformedSurface =
+        resolvedPhase === "remediationTransforming" ||
+        resolvedPhase === "remediationTransformed" ||
         resolvedPhase === "sequenceComplete";
+    const showRemediationUi =
+        resolvedPhase === "remediation" || resolvedPhase === "remediationSettled";
 
     return (
         <div
@@ -947,15 +1987,20 @@ export default function F3PhishingEmail({
                     <div ref={elasticLayerRef} className="f3-elastic-layer flex min-h-0 flex-1 flex-col">
                     {/* Symmetric horizontal inset; inner cluster centered so the reading pane isn’t one-sided on wide viewports */}
                     <div className="flex h-full min-h-[inherit] w-full flex-col px-5 pb-12 pt-12 sm:px-6 sm:pb-12 sm:pt-14 md:px-10 md:pb-10 md:pt-[4.35rem] lg:px-14 lg:pb-11 lg:pt-[4.75rem] xl:px-16">
+                        <div
+                            ref={clientSurfaceBoundsRef}
+                            className="relative mx-auto flex min-h-0 w-full max-w-[min(100%,72rem)] flex-1 flex-col"
+                        >
                         {/* Mobile: hint of a list above the reading pane */}
-                        <div className="f3-divider mb-6 border-b pb-2 md:mb-0 md:hidden">
+                        <div className="f3-divider relative mb-6 border-b pb-2 md:mb-0 md:hidden">
                             <F3GhostInboxMobileStrip
                                 shellVisible={resolvedShellVisible}
                                 selectedActive={resolvedSelectedActive}
+                                dockTargetId="f3-remediation-dock-target-mobile"
                             />
                         </div>
 
-                        <div className="mx-auto flex min-h-0 w-full max-w-[min(100%,72rem)] flex-1 flex-col md:flex-row md:items-stretch">
+                        <div className="flex min-h-0 w-full flex-1 flex-col md:flex-row md:items-stretch">
                         {/* Ghost inbox — narrow pane, recedes vs reading area (directions.md) */}
                         <aside
                             className="f3-shell-surface f3-divider relative z-0 hidden min-h-0 shrink-0 flex-col border-r md:flex md:w-[248px] md:min-w-[220px] md:max-w-[260px]"
@@ -965,14 +2010,16 @@ export default function F3PhishingEmail({
                             <F3GhostInboxSidebar
                                 shellVisible={resolvedShellVisible}
                                 selectedActive={resolvedSelectedActive}
+                                dockTargetId="f3-remediation-dock-target-desktop"
                             />
                         </aside>
 
                         {/* Reading pane: continuous with app chrome; message left-anchored like a real reader */}
                         <article
+                            ref={clientSurfaceRightEdgeRef}
                             className="f3-shell-surface f3-divider relative z-[5] flex min-w-0 flex-1 flex-col overflow-visible border-l bg-[var(--background)] md:border-l-0"
                             data-shell-visible={resolvedShellVisible}
-                            data-f3-remediation={showRemediationUi ? "true" : "false"}
+                            data-f3-remediation={showTransformedSurface || showRemediationUi ? "true" : "false"}
                             aria-label="Demonstration: simulated security alert email, as in a phishing attempt"
                         >
                             <div className="shrink-0 px-3 pt-0.5 pb-0 md:px-5 lg:px-6">
@@ -980,8 +2027,11 @@ export default function F3PhishingEmail({
                             </div>
 
                             <div className="relative min-h-0 min-w-0 flex-1 overflow-visible px-3 pb-8 pt-5 md:px-5 md:pt-6 md:pb-10 lg:px-6">
-                                {showRemediationUi ? (
-                                    <F3RemediationReaderPanel />
+                                {showTransformedSurface ? null : showRemediationUi ? (
+                                    <F3RemediationReaderPanel
+                                        forensicLayouts={forensicLayouts}
+                                        forensicEditor={forensicEditor}
+                                    />
                                 ) : (
                                     <>
                                 {/* em-based type/grid inside; size knob: --f3-message-scale on :root */}
@@ -991,7 +2041,7 @@ export default function F3PhishingEmail({
                                         text={SUBJECT_LINE}
                                         active={resolvedSubjectActive}
                                         duration={900}
-                                        skipAnimation={prefersReducedMotion}
+                                        skipAnimation={shouldSkipTypingAnimation}
                                         className="f3-email-subject col-span-2 row-start-1 mb-7 text-left text-[1.52em] leading-[1.06] md:mb-6 md:text-[1.67em] lg:text-[1.78em]"
                                         reserveSpaceText={SUBJECT_LINE}
                                     />
@@ -1040,7 +2090,7 @@ export default function F3PhishingEmail({
                                             text={EVENT_SENTENCE}
                                             active={resolvedEventActive}
                                             duration={EVENT_DURATION_MS}
-                                            skipAnimation={prefersReducedMotion}
+                                            skipAnimation={shouldSkipTypingAnimation}
                                             className="f3-body-line"
                                         />
                                         <ul className="f3-detail-list list-disc space-y-1.5 pl-[1.15em] marker:text-white/35" data-visible={resolvedDetailsVisible}>
@@ -1050,7 +2100,7 @@ export default function F3PhishingEmail({
                                                     text={F3_DETAIL_LOCATION}
                                                     active={resolvedDetailsVisible}
                                                     duration={DETAILS_DURATION_MS}
-                                                    skipAnimation={prefersReducedMotion}
+                                                    skipAnimation={shouldSkipTypingAnimation}
                                                     className="f3-detail-line"
                                                     reserveSpaceText={F3_DETAIL_LOCATION}
                                                     reserveSpaceContent={
@@ -1077,7 +2127,7 @@ export default function F3PhishingEmail({
                                                     text={F3_DETAIL_DEVICE}
                                                     active={resolvedDetailsVisible}
                                                     duration={DETAILS_DURATION_MS}
-                                                    skipAnimation={prefersReducedMotion}
+                                                    skipAnimation={shouldSkipTypingAnimation}
                                                     className="f3-detail-line"
                                                     reserveSpaceText={F3_DETAIL_DEVICE}
                                                     reserveSpaceContent={
@@ -1104,7 +2154,7 @@ export default function F3PhishingEmail({
                                                     text={F3_DETAIL_TIME}
                                                     active={resolvedDetailsVisible}
                                                     duration={DETAILS_DURATION_MS}
-                                                    skipAnimation={prefersReducedMotion}
+                                                    skipAnimation={shouldSkipTypingAnimation}
                                                     className="f3-detail-line"
                                                     reserveSpaceText={F3_DETAIL_TIME}
                                                     reserveSpaceContent={
@@ -1130,7 +2180,7 @@ export default function F3PhishingEmail({
                                             text={ACTION_SENTENCE}
                                             active={resolvedActionActive}
                                             duration={560}
-                                            skipAnimation={prefersReducedMotion}
+                                            skipAnimation={shouldSkipTypingAnimation}
                                             className="f3-body-line"
                                             completeContent={
                                                 <>
@@ -1183,11 +2233,25 @@ export default function F3PhishingEmail({
                             </div>
                         </article>
                     </div>
+                        {(resolvedPhase === "remediationTransforming" ||
+                            resolvedPhase === "remediationTransformed" ||
+                            resolvedPhase === "sequenceComplete") ? (
+                            <F3ClientReskinOverlay
+                                phase={resolvedPhase}
+                                prefersReducedMotion={prefersReducedMotion}
+                                onComplete={handleReskinTransformComplete}
+                                rightInset={clientSurfaceRightInset}
+                                sourceOrigin={clientSurfaceSourceOrigin}
+                                forensicLayouts={forensicLayouts}
+                                forensicEditor={forensicEditor}
+                            />
+                        ) : null}
+                        </div>
                 </div>
                 </div>
                 </div>
 
-                {resolvedPhase === "consequence" ? (
+                {showConsequenceLayer ? (
                     <section
                         className="f3-consequence-layer pointer-events-auto absolute inset-0 z-[40] flex items-center justify-center px-6"
                         aria-labelledby="f3-consequence-headline"
@@ -1200,6 +2264,17 @@ export default function F3PhishingEmail({
                         />
                         {/* Optical lift: GSAP targets inner copy only so this offset stays static. */}
                         <div className="relative z-[1] -translate-y-[min(3vh,1.75rem)] pointer-events-none">
+                            <div
+                                ref={consequenceAtmosphereRef}
+                                className="pointer-events-none absolute inset-x-[-10%] top-[-14%] bottom-[-18%] rounded-[42px]"
+                                style={{
+                                    opacity: 0,
+                                    background:
+                                        "radial-gradient(circle at 50% 34%, rgba(255,255,255,0.085) 0%, rgba(167,139,250,0.09) 18%, rgba(92,63,166,0.055) 38%, rgba(10,8,16,0) 74%)",
+                                    mixBlendMode: "screen",
+                                }}
+                                aria-hidden
+                            />
                             <div
                                 ref={consequenceCopyRef}
                                 className="f3-consequence-copy-3d flex max-w-[min(100%,32rem)] flex-col items-center text-center md:max-w-[38rem] pointer-events-none will-change-transform"
@@ -1255,8 +2330,19 @@ export default function F3PhishingEmail({
                       globalThis.document.body
                   )
                 : null}
-            {slabPortalReady && resolvedPhase === "remediationSlab" ? (
-                <F3RemediationSlab prefersReducedMotion={prefersReducedMotion} />
+            {slabPortalReady &&
+            (
+                resolvedPhase === "remediationSlab" ||
+                resolvedPhase === "remediationDocked" ||
+                manualSlabStage !== undefined
+            ) ? (
+                <F3RemediationSlab
+                    prefersReducedMotion={prefersReducedMotion}
+                    debugStage={manualSlabStage ?? labSlabStage}
+                    enableDocking={!manualMode && !(hasLabRange && labRange.end === "end-slab-entrance")}
+                    dockTargetSelectors={REMEDIATION_DOCK_TARGET_SELECTORS}
+                    onDockComplete={handleRemediationDockComplete}
+                />
             ) : null}
         </div>
     );

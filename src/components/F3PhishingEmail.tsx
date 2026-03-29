@@ -26,6 +26,7 @@ import {
     F3_FORENSIC_LAYOUTS,
     type F3ForensicLayoutSet,
     type F3ForensicOverlayEditor,
+    type F3ForensicTargetKey,
 } from "./F3ForensicOverlay";
 import F3MailReaderChrome from "./F3MailReaderChrome";
 import F3NudgeArrow from "./F3NudgeArrow";
@@ -188,6 +189,8 @@ const REMEDIATION_DOCK_TARGET_SELECTORS = [
 ] as const;
 const REMEDIATION_RESKIN_START_DELAY_MS = 0;
 const REMEDIATION_RESKIN_DEBUG_SLOW_MULTIPLIER = 2.8;
+const REMEDIATION_POST_TRANSFORM_SETTLE_MS = 1200;
+const REMEDIATION_ANNOTATION_PAIR_PAUSE_MS = 560;
 
 function usePrefersReducedMotion() {
     const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
@@ -475,9 +478,17 @@ function buildLiquidRevealGeometry(
 }
 
 function F3ReskinnedMailContent({
+    annotationsActive = true,
+    visibleAnnotationKeys,
+    animatedAnnotationKey,
+    onAnimatedAnnotationComplete,
     forensicLayouts,
     forensicEditor,
 }: Readonly<{
+    annotationsActive?: boolean;
+    visibleAnnotationKeys?: readonly F3ForensicTargetKey[];
+    animatedAnnotationKey?: F3ForensicTargetKey;
+    onAnimatedAnnotationComplete?: (key: F3ForensicTargetKey) => void;
     forensicLayouts?: F3ForensicLayoutSet;
     forensicEditor?: F3ForensicOverlayEditor;
 }>) {
@@ -489,6 +500,10 @@ function F3ReskinnedMailContent({
 
             <div className="relative min-h-0 min-w-0 flex-1 overflow-visible px-3 pb-8 pt-5 md:px-5 md:pb-10 md:pt-6 lg:px-6">
                 <F3RemediationReaderPanel
+                    annotationsActive={annotationsActive}
+                    visibleAnnotationKeys={visibleAnnotationKeys}
+                    animatedAnnotationKey={animatedAnnotationKey}
+                    onAnimatedAnnotationComplete={onAnimatedAnnotationComplete}
                     forensicLayouts={forensicLayouts}
                     forensicEditor={forensicEditor}
                 />
@@ -501,14 +516,27 @@ function F3ClientReskinOverlay({
     phase,
     prefersReducedMotion,
     onComplete,
+    visibleAnnotationKeys,
+    animatedAnnotationKey,
+    onAnimatedAnnotationComplete,
     rightInset = 0,
     sourceOrigin,
     forensicLayouts,
     forensicEditor,
 }: Readonly<{
-    phase: Extract<F3Phase, "remediationTransforming" | "remediationTransformed" | "sequenceComplete">;
+    phase: Extract<
+        F3Phase,
+        | "remediationTransforming"
+        | "remediationTransformed"
+        | "remediation"
+        | "remediationSettled"
+        | "sequenceComplete"
+    >;
     prefersReducedMotion: boolean;
     onComplete: () => void;
+    visibleAnnotationKeys?: readonly F3ForensicTargetKey[];
+    animatedAnnotationKey?: F3ForensicTargetKey;
+    onAnimatedAnnotationComplete?: (key: F3ForensicTargetKey) => void;
     rightInset?: number;
     sourceOrigin: Readonly<{ x: number; y: number }>;
     forensicLayouts?: F3ForensicLayoutSet;
@@ -524,6 +552,7 @@ function F3ClientReskinOverlay({
     const sweepLipRef = useRef<HTMLDivElement>(null);
     const sweepGrainRef = useRef<HTMLDivElement>(null);
     const glossRef = useRef<HTMLDivElement>(null);
+    const settleSheenRef = useRef<HTMLDivElement>(null);
 
     useLayoutEffect(() => {
         const root = rootRef.current;
@@ -536,6 +565,7 @@ function F3ClientReskinOverlay({
         const sweepLip = sweepLipRef.current;
         const sweepGrain = sweepGrainRef.current;
         const gloss = glossRef.current;
+        const settleSheen = settleSheenRef.current;
         if (
             !root ||
             !panel ||
@@ -546,7 +576,8 @@ function F3ClientReskinOverlay({
             !sweepBody ||
             !sweepLip ||
             !sweepGrain ||
-            !gloss
+            !gloss ||
+            !settleSheen
         ) {
             return;
         }
@@ -566,6 +597,7 @@ function F3ClientReskinOverlay({
                 });
                 gsap.set(mineral, { opacity: 0.74 });
                 gsap.set(gloss, { opacity: 0.28 });
+                gsap.set(settleSheen, { opacity: 0, xPercent: -18 });
                 gsap.set(sourcePulse, { opacity: 0, scale: 2.4 });
                 gsap.set(sweep, {
                     opacity: 0,
@@ -583,6 +615,8 @@ function F3ClientReskinOverlay({
             if (
                 prefersReducedMotion ||
                 phase === "remediationTransformed" ||
+                phase === "remediation" ||
+                phase === "remediationSettled" ||
                 phase === "sequenceComplete"
             ) {
                 setFinalState();
@@ -603,10 +637,11 @@ function F3ClientReskinOverlay({
                 clipPath: initialGeometry.clipPath,
             });
             gsap.set(mineral, { opacity: 0.16 });
-            gsap.set(gloss, { opacity: 0.08 });
-            gsap.set(sourcePulse, {
-                opacity: 0.42,
-                scale: 0.18,
+                gsap.set(gloss, { opacity: 0.08 });
+                gsap.set(settleSheen, { opacity: 0, xPercent: -18 });
+                gsap.set(sourcePulse, {
+                    opacity: 0.42,
+                    scale: 0.18,
                 x: sourceX,
                 y: sourceY,
                 xPercent: -50,
@@ -758,6 +793,45 @@ function F3ClientReskinOverlay({
         };
     }, [onComplete, phase, prefersReducedMotion, sourceOrigin]);
 
+    useLayoutEffect(() => {
+        const settleSheen = settleSheenRef.current;
+        if (!settleSheen || prefersReducedMotion || phase !== "remediationTransformed") return;
+
+        const ctx = gsap.context(() => {
+            gsap.set(settleSheen, {
+                opacity: 0,
+                xPercent: -138,
+                yPercent: -84,
+                rotate: -28,
+            });
+
+            gsap.timeline()
+                .to(settleSheen, {
+                    opacity: 0.14,
+                    duration: 0.1,
+                    ease: "power1.out",
+                })
+                .to(
+                    settleSheen,
+                    {
+                        xPercent: 138,
+                        yPercent: 84,
+                        opacity: 0.02,
+                        duration: 0.82,
+                        ease: "none",
+                    },
+                    0
+                )
+                .to(settleSheen, {
+                    opacity: 0,
+                    duration: 0.1,
+                    ease: "power1.out",
+                }, 0.72);
+        }, rootRef);
+
+        return () => ctx.revert();
+    }, [phase, prefersReducedMotion]);
+
     return (
         <div
             ref={rootRef}
@@ -805,6 +879,17 @@ function F3ClientReskinOverlay({
                     }}
                 />
                 <div
+                    ref={settleSheenRef}
+                    className="absolute left-[-84%] top-[-68%] h-[240%] w-[156%] rounded-[999px]"
+                    style={{
+                        background:
+                            "linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(167,139,250,0.018) 18%, rgba(236,231,251,0.038) 34%, rgba(255,255,255,0.092) 50%, rgba(167,139,250,0.032) 68%, rgba(255,255,255,0) 100%)",
+                        filter: "blur(32px)",
+                        mixBlendMode: "screen",
+                        opacity: 0,
+                    }}
+                />
+                <div
                     className="absolute inset-0 rounded-[22px]"
                     style={{
                         background:
@@ -819,6 +904,14 @@ function F3ClientReskinOverlay({
                     }}
                 />
                 <F3ReskinnedMailContent
+                    annotationsActive={
+                        phase === "remediation" ||
+                        phase === "remediationSettled" ||
+                        phase === "sequenceComplete"
+                    }
+                    visibleAnnotationKeys={visibleAnnotationKeys}
+                    animatedAnnotationKey={animatedAnnotationKey}
+                    onAnimatedAnnotationComplete={onAnimatedAnnotationComplete}
                     forensicLayouts={forensicLayouts}
                     forensicEditor={forensicEditor}
                 />
@@ -911,7 +1004,6 @@ export default function F3PhishingEmail({
     const clientSurfaceRightEdgeRef = useRef<HTMLElement>(null);
     const hasStartedRef = useRef(false);
     const labStartAppliedRef = useRef(false);
-    const labAutoReleasedRef = useRef(false);
     const releaseNotifiedRef = useRef(false);
     const touchStartYRef = useRef<number | null>(null);
     const touchNudgedThisGestureRef = useRef(false);
@@ -955,6 +1047,12 @@ export default function F3PhishingEmail({
     const [showConsequenceLayer, setShowConsequenceLayer] = useState(false);
     const [overscrollGlowPortalReady, setOverscrollGlowPortalReady] = useState(false);
     const [slabPortalReady, setSlabPortalReady] = useState(false);
+    const [visibleAnnotationKeys, setVisibleAnnotationKeys] = useState<
+        readonly F3ForensicTargetKey[]
+    >([]);
+    const [animatedAnnotationKey, setAnimatedAnnotationKey] = useState<
+        F3ForensicTargetKey | undefined
+    >(undefined);
     const [clientSurfaceRightInset, setClientSurfaceRightInset] = useState(0);
     const [clientSurfaceSourceOrigin, setClientSurfaceSourceOrigin] = useState<{
         x: number;
@@ -1227,7 +1325,7 @@ export default function F3PhishingEmail({
         } else if (labRange.start === "end-surface") {
             setPhase("remediationTransformed");
         } else if (labRange.start === "absolute-end") {
-            setPhase("sequenceComplete");
+            setPhase("remediationSettled");
         }
 
         labStartAppliedRef.current = true;
@@ -1502,12 +1600,72 @@ export default function F3PhishingEmail({
         return () => globalThis.window.clearTimeout(timeoutId);
     }, [hasLabRange, labRange, manualMode, resolvedPhase]);
 
+    useEffect(() => {
+        if (resolvedPhase !== "remediationTransformed") return;
+        if (manualMode || (hasLabRange && labRange.end === "end-surface")) return;
+
+        const timeoutId = globalThis.window.setTimeout(() => {
+            setPhase((current) =>
+                current === "remediationTransformed" ? "remediation" : current
+            );
+        }, REMEDIATION_POST_TRANSFORM_SETTLE_MS);
+
+        return () => globalThis.window.clearTimeout(timeoutId);
+    }, [hasLabRange, labRange, manualMode, resolvedPhase]);
+
+    useEffect(() => {
+        if (resolvedPhase === "remediationTransforming" || resolvedPhase === "remediationTransformed") {
+            setVisibleAnnotationKeys([]);
+            setAnimatedAnnotationKey(undefined);
+            return;
+        }
+
+        if (resolvedPhase === "remediation") {
+            setVisibleAnnotationKeys(["sender-domain"]);
+            setAnimatedAnnotationKey("sender-domain");
+            return;
+        }
+
+        if (resolvedPhase === "remediationSettled" || resolvedPhase === "sequenceComplete") {
+            setVisibleAnnotationKeys(["sender-domain", "pressure", "cta"]);
+            setAnimatedAnnotationKey(undefined);
+            return;
+        }
+    }, [resolvedPhase]);
+
     const requestSequenceRelease = useCallback(() => {
         if (releaseNotifiedRef.current) return;
         releaseNotifiedRef.current = true;
         onSequenceRelease?.();
         setPhase("sequenceComplete");
     }, [onSequenceRelease]);
+
+    const handleAnimatedAnnotationComplete = useCallback((key: F3ForensicTargetKey) => {
+        if (key === "sender-domain") {
+            setAnimatedAnnotationKey(undefined);
+            schedule(REMEDIATION_ANNOTATION_PAIR_PAUSE_MS, () => {
+                setVisibleAnnotationKeys(["sender-domain", "pressure"]);
+                setAnimatedAnnotationKey("pressure");
+            });
+            return;
+        }
+
+        if (key === "pressure") {
+            setAnimatedAnnotationKey(undefined);
+            schedule(REMEDIATION_ANNOTATION_PAIR_PAUSE_MS, () => {
+                setVisibleAnnotationKeys(["sender-domain", "pressure", "cta"]);
+                setAnimatedAnnotationKey("cta");
+            });
+            return;
+        }
+
+        if (key === "cta") {
+            setAnimatedAnnotationKey(undefined);
+            schedule(REMEDIATION_ANNOTATION_PAIR_PAUSE_MS, () => {
+                setPhase((current) => (current === "remediation" ? "remediationSettled" : current));
+            });
+        }
+    }, [schedule]);
 
     useLayoutEffect(() => {
         if (resolvedPhase !== "remediation") return;
@@ -1522,30 +1680,7 @@ export default function F3PhishingEmail({
                 force3D: true,
             });
         }
-        const frameId = globalThis.window.requestAnimationFrame(() => {
-            setPhase("remediationSettled");
-        });
-        return () => globalThis.window.cancelAnimationFrame(frameId);
     }, [resolvedPhase]);
-
-    useEffect(() => {
-        if (!hasLabRange || labRange.end !== "absolute-end") return;
-        if (
-            resolvedPhase !== "remediationDocked" &&
-            resolvedPhase !== "remediationTransformed" &&
-            resolvedPhase !== "remediationSettled"
-        ) {
-            return;
-        }
-        if (labAutoReleasedRef.current) return;
-
-        const timeoutId = globalThis.window.setTimeout(() => {
-            labAutoReleasedRef.current = true;
-            requestSequenceRelease();
-        }, 240);
-
-        return () => globalThis.window.clearTimeout(timeoutId);
-    }, [hasLabRange, labRange, requestSequenceRelease, resolvedPhase]);
 
     useLayoutEffect(() => {
         if (resolvedPhase !== "consequence") return;
@@ -1964,9 +2099,10 @@ export default function F3PhishingEmail({
     const showTransformedSurface =
         resolvedPhase === "remediationTransforming" ||
         resolvedPhase === "remediationTransformed" ||
+        resolvedPhase === "remediation" ||
+        resolvedPhase === "remediationSettled" ||
         resolvedPhase === "sequenceComplete";
-    const showRemediationUi =
-        resolvedPhase === "remediation" || resolvedPhase === "remediationSettled";
+    const showRemediationUi = false;
 
     return (
         <div
@@ -2029,6 +2165,16 @@ export default function F3PhishingEmail({
                             <div className="relative min-h-0 min-w-0 flex-1 overflow-visible px-3 pb-8 pt-5 md:px-5 md:pt-6 md:pb-10 lg:px-6">
                                 {showTransformedSurface ? null : showRemediationUi ? (
                                     <F3RemediationReaderPanel
+                                        visibleAnnotationKeys={
+                                            resolvedPhase === "remediation"
+                                                ? (["sender-domain"] as const)
+                                                : ["sender-domain", "pressure", "cta"]
+                                        }
+                                        animatedAnnotationKey={
+                                            resolvedPhase === "remediation"
+                                                ? ("sender-domain" as F3ForensicTargetKey)
+                                                : undefined
+                                        }
                                         forensicLayouts={forensicLayouts}
                                         forensicEditor={forensicEditor}
                                     />
@@ -2235,11 +2381,16 @@ export default function F3PhishingEmail({
                     </div>
                         {(resolvedPhase === "remediationTransforming" ||
                             resolvedPhase === "remediationTransformed" ||
+                            resolvedPhase === "remediation" ||
+                            resolvedPhase === "remediationSettled" ||
                             resolvedPhase === "sequenceComplete") ? (
                             <F3ClientReskinOverlay
                                 phase={resolvedPhase}
                                 prefersReducedMotion={prefersReducedMotion}
                                 onComplete={handleReskinTransformComplete}
+                                visibleAnnotationKeys={visibleAnnotationKeys}
+                                animatedAnnotationKey={animatedAnnotationKey}
+                                onAnimatedAnnotationComplete={handleAnimatedAnnotationComplete}
                                 rightInset={clientSurfaceRightInset}
                                 sourceOrigin={clientSurfaceSourceOrigin}
                                 forensicLayouts={forensicLayouts}

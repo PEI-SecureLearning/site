@@ -1,6 +1,16 @@
 "use client";
 
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent, type RefObject } from "react";
+import {
+    useCallback,
+    useEffect,
+    useLayoutEffect,
+    useMemo,
+    useRef,
+    useState,
+    type AnimationEvent as ReactAnimationEvent,
+    type PointerEvent as ReactPointerEvent,
+    type RefObject,
+} from "react";
 import { F3_FORENSIC_LABELS } from "./f3PhishingCopy";
 
 type TargetKey = "sender-domain" | "pressure" | "cta";
@@ -165,8 +175,8 @@ export const F3_FORENSIC_LAYOUTS = {
                 height: 0.07272727272727272,
             },
             elbow: {
-                x: 0.5710422291962998,
-                y: 0.7715587516883751,
+                x: 0.569949069645094,
+                y: 0.7794259190035203,
             },
             targetAnchor: {
                 x: 1,
@@ -437,12 +447,18 @@ export function F3ForensicOverlay({
     overlayRootRef,
     targetRefs,
     active,
+    visibleKeys,
+    animatedKey,
+    onAnimatedKeyComplete,
     layouts,
     editor,
 }: Readonly<{
     overlayRootRef: RefObject<HTMLElement | null>;
     targetRefs: TargetRefs;
     active: boolean;
+    visibleKeys?: readonly F3ForensicTargetKey[];
+    animatedKey?: F3ForensicTargetKey;
+    onAnimatedKeyComplete?: (key: F3ForensicTargetKey) => void;
     layouts?: F3ForensicLayoutSet;
     editor?: F3ForensicOverlayEditor;
 }>) {
@@ -461,6 +477,8 @@ export function F3ForensicOverlay({
     const activeBreakpoint =
         editor?.breakpointOverride ?? resolveBreakpointForWidth(overlaySize.width);
     const currentLayouts = layoutsRef.current;
+    const resolvedVisibleKeys =
+        visibleKeys ?? (["sender-domain", "pressure", "cta"] as const satisfies readonly F3ForensicTargetKey[]);
 
     const measure = useCallback(() => {
         const overlayRoot = overlayRootRef.current;
@@ -734,11 +752,17 @@ export function F3ForensicOverlay({
                     const gradientId = gradientIds.find((entry) => entry.key === box.key)?.id;
                     const stroke = gradientId ? `url(#${gradientId})` : "#9b6bff";
                     const radius = Math.min(14, Math.max(10, box.boxHeight * 0.34));
+                    const isVisible = resolvedVisibleKeys.includes(box.key);
+                    const revealState =
+                        !isVisible ? "hidden" : animatedKey === box.key ? "animating" : "visible";
 
                     return (
                         <g key={`callout-${box.key}`}>
                             <polyline
+                                className="f3-forensic-leader-path"
+                                data-reveal={revealState}
                                 points={box.linePoints}
+                                pathLength={1}
                                 fill="none"
                                 stroke={stroke}
                                 strokeWidth={1.55}
@@ -746,39 +770,9 @@ export function F3ForensicOverlay({
                                 strokeLinejoin="round"
                                 strokeMiterlimit={4}
                             />
-                            <rect
-                                x={box.boxLeft}
-                                y={box.boxTop}
-                                width={box.boxWidth}
-                                height={box.boxHeight}
-                                rx={radius}
-                                fill="none"
-                                stroke={stroke}
-                                strokeWidth={2.2}
-                                opacity={0.16}
-                                filter="url(#f3-forensic-box-glow)"
-                            />
-                            <rect
-                                x={box.boxLeft}
-                                y={box.boxTop}
-                                width={box.boxWidth}
-                                height={box.boxHeight}
-                                rx={radius}
-                                fill="rgba(17, 14, 24, 0.22)"
-                                stroke={stroke}
-                                strokeWidth={1.45}
-                            />
-                            <rect
-                                x={box.boxLeft + 1}
-                                y={box.boxTop + 1}
-                                width={Math.max(0, box.boxWidth - 2)}
-                                height={Math.max(0, box.boxHeight - 2)}
-                                rx={Math.max(radius - 1, 8)}
-                                fill="none"
-                                stroke="rgba(255,255,255,0.045)"
-                                strokeWidth={0.8}
-                            />
                             <circle
+                                className="f3-forensic-leader-dot"
+                                data-reveal={revealState}
                                 cx={box.targetAnchorX}
                                 cy={box.targetAnchorY}
                                 r={1.9}
@@ -787,6 +781,8 @@ export function F3ForensicOverlay({
                                 strokeWidth={1.05}
                             />
                             <circle
+                                className="f3-forensic-leader-dot"
+                                data-reveal={revealState}
                                 cx={box.elbowX}
                                 cy={box.elbowY}
                                 r={2.4}
@@ -794,6 +790,46 @@ export function F3ForensicOverlay({
                                 stroke={stroke}
                                 strokeWidth={1.1}
                             />
+                            <g className="f3-forensic-note-shell" data-reveal={revealState}>
+                                <rect
+                                    className="f3-forensic-note-glow"
+                                    x={box.boxLeft}
+                                    y={box.boxTop}
+                                    width={box.boxWidth}
+                                    height={box.boxHeight}
+                                    rx={radius}
+                                    fill="none"
+                                    stroke={stroke}
+                                    strokeWidth={2.2}
+                                    opacity={0.16}
+                                    filter="url(#f3-forensic-box-glow)"
+                                    pathLength={1}
+                                />
+                                <rect
+                                    className="f3-forensic-note-frame"
+                                    x={box.boxLeft}
+                                    y={box.boxTop}
+                                    width={box.boxWidth}
+                                    height={box.boxHeight}
+                                    rx={radius}
+                                    fill="rgba(17, 14, 24, 0.22)"
+                                    stroke={stroke}
+                                    strokeWidth={1.45}
+                                    pathLength={1}
+                                />
+                                <rect
+                                    className="f3-forensic-note-inner"
+                                    x={box.boxLeft + 1}
+                                    y={box.boxTop + 1}
+                                    width={Math.max(0, box.boxWidth - 2)}
+                                    height={Math.max(0, box.boxHeight - 2)}
+                                    rx={Math.max(radius - 1, 8)}
+                                    fill="none"
+                                    stroke="rgba(255,255,255,0.045)"
+                                    strokeWidth={0.8}
+                                    pathLength={1}
+                                />
+                            </g>
                         </g>
                     );
                 })}
@@ -802,7 +838,14 @@ export function F3ForensicOverlay({
             {boxes.map((box) => (
                 <div
                     key={`copy-${box.key}`}
-                    className="pointer-events-none absolute flex items-center"
+                    className="f3-forensic-copy pointer-events-none absolute flex items-center"
+                    data-reveal={
+                        !resolvedVisibleKeys.includes(box.key)
+                            ? "hidden"
+                            : animatedKey === box.key
+                              ? "animating"
+                              : "visible"
+                    }
                     style={{
                         left: `${box.boxLeft + F3_FORENSIC_COPY_INSET_X}px`,
                         top: `${box.boxTop + F3_FORENSIC_COPY_INSET_Y}px`,
@@ -815,6 +858,13 @@ export function F3ForensicOverlay({
                         style={{
                             fontSize: `${F3_FORENSIC_COPY_FONT_SIZE_REM}rem`,
                             lineHeight: F3_FORENSIC_COPY_LINE_HEIGHT,
+                            ["--f3-forensic-char-count" as string]:
+                                F3_FORENSIC_COPY_BY_KEY[box.key].length,
+                        }}
+                        onAnimationEnd={(event: ReactAnimationEvent<HTMLParagraphElement>) => {
+                            if (event.animationName !== "f3ForensicCopyTypeReveal") return;
+                            if (animatedKey !== box.key) return;
+                            onAnimatedKeyComplete?.(box.key);
                         }}
                     >
                         {F3_FORENSIC_COPY_BY_KEY[box.key]}

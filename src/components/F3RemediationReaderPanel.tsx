@@ -4,7 +4,12 @@ import { ArrowUpRight } from "lucide-react";
 import Image from "next/image";
 import { useRef } from "react";
 import F3EmailMessageStatic from "./F3EmailMessageStatic";
-import { F3ForensicOverlay, type F3ForensicLayoutSet, type F3ForensicOverlayEditor } from "./F3ForensicOverlay";
+import {
+    F3ForensicOverlay,
+    type F3ForensicLayoutSet,
+    type F3ForensicOverlayEditor,
+    type F3ForensicTargetKey,
+} from "./F3ForensicOverlay";
 import {
     F3_INTERVENTION_SLAB_REVIEW_LINE,
     F3_INTERVENTION_SLAB_SIMULATION_LINE,
@@ -19,13 +24,21 @@ import {
  * The email remains the dominant object; the rail should frame the state, not compete with it.
  */
 export default function F3RemediationReaderPanel({
+    annotationsActive = true,
+    visibleAnnotationKeys = ["sender-domain", "pressure", "cta"],
+    animatedAnnotationKey,
+    onAnimatedAnnotationComplete,
     forensicLayouts,
     forensicEditor,
 }: Readonly<{
+    annotationsActive?: boolean;
+    visibleAnnotationKeys?: readonly F3ForensicTargetKey[];
+    animatedAnnotationKey?: F3ForensicTargetKey;
+    onAnimatedAnnotationComplete?: (key: F3ForensicTargetKey) => void;
     forensicLayouts?: F3ForensicLayoutSet;
     forensicEditor?: F3ForensicOverlayEditor;
 }>) {
-    const overlayRootRef = useRef<HTMLDivElement>(null);
+    const forensicStageRef = useRef<HTMLDivElement>(null);
     const senderDomainRef = useRef<HTMLSpanElement>(null);
     const pressureRef = useRef<HTMLElement>(null);
     const ctaRef = useRef<HTMLSpanElement>(null);
@@ -35,21 +48,21 @@ export default function F3RemediationReaderPanel({
             <p className="sr-only" aria-live="polite">
                 Simulation complete. Review the highlighted areas in the email body.
             </p>
-            <div ref={overlayRootRef} className="relative min-h-full min-w-0 w-full overflow-visible">
-                <div className="pointer-events-none absolute left-0 top-[-3.45rem] z-[2] flex max-w-[30rem] items-start gap-3">
+            <div className="relative min-h-full min-w-0 w-full overflow-visible">
+                <div className="pointer-events-none absolute left-0 top-[-3.5rem] z-[2] flex max-w-[30.5rem] items-start gap-3.25">
                     <Image
                         src="/assets/branding/logo-icon.png"
                         alt=""
                         width={55}
                         height={55}
-                        className="-mt-3 h-[3.5rem] w-[3.5rem] shrink-0 object-contain opacity-[0.84]"
+                        className="-mt-3.25 h-[3.65rem] w-[3.65rem] shrink-0 object-contain opacity-[0.85]"
                         aria-hidden
                     />
                     <div className="pt-0.5">
-                        <p className="text-[0.78rem] font-semibold leading-none tracking-[-0.01em] text-white/[0.62]">
+                        <p className="text-[0.82rem] font-semibold leading-none tracking-[-0.011em] text-white/[0.63]">
                             {F3_INTERVENTION_SLAB_SIMULATION_LINE}
                         </p>
-                        <p className="mt-1.5 max-w-[24rem] text-[0.7rem] leading-[1.46] tracking-[-0.005em] text-white/[0.4]">
+                        <p className="mt-1.5 max-w-[24.5rem] text-[0.73rem] leading-[1.48] tracking-[-0.005em] text-white/[0.41]">
                             {F3_INTERVENTION_SLAB_REVIEW_LINE}
                         </p>
                     </div>
@@ -79,19 +92,31 @@ export default function F3RemediationReaderPanel({
                         <ArrowUpRight className="h-3.5 w-3.5 transition duration-300 group-hover:translate-x-[1px] group-hover:-translate-y-[1px]" strokeWidth={1.9} />
                     </span>
                 </button>
-                <div className="relative min-w-0 w-full max-w-[44rem] overflow-visible">
-                    <F3EmailMessageStatic
-                        senderDomainRef={senderDomainRef}
-                        pressureRef={pressureRef}
-                        ctaRef={ctaRef}
-                    />
-                    <F3ForensicOverlay
-                        overlayRootRef={overlayRootRef}
-                        targetRefs={{ senderDomainRef, pressureRef, ctaRef }}
-                        active
-                        layouts={forensicLayouts}
-                        editor={forensicEditor}
-                    />
+                <div
+                    ref={forensicStageRef}
+                    className="relative min-w-0 w-full translate-y-[1.2rem] overflow-visible md:translate-y-[1.4rem]"
+                >
+                    <div className="relative min-w-0 w-full max-w-[44rem] overflow-visible">
+                        <F3EmailMessageStatic
+                            senderDomainRef={senderDomainRef}
+                            pressureRef={pressureRef}
+                            ctaRef={ctaRef}
+                            visibleHighlightKeys={visibleAnnotationKeys}
+                            animatedHighlightKey={animatedAnnotationKey}
+                        />
+                    </div>
+                    {annotationsActive ? (
+                        <F3ForensicOverlay
+                            overlayRootRef={forensicStageRef}
+                            targetRefs={{ senderDomainRef, pressureRef, ctaRef }}
+                            active
+                            visibleKeys={visibleAnnotationKeys}
+                            animatedKey={animatedAnnotationKey}
+                            onAnimatedKeyComplete={onAnimatedAnnotationComplete}
+                            layouts={forensicLayouts}
+                            editor={forensicEditor}
+                        />
+                    ) : null}
                 </div>
             </div>
         </>

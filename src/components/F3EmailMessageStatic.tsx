@@ -1,6 +1,7 @@
 "use client";
 
 import type { Ref } from "react";
+import type { F3ForensicTargetKey } from "./F3ForensicOverlay";
 import {
     F3_CTA_LABEL,
     F3_DETAIL_DEVICE,
@@ -16,6 +17,8 @@ export type F3EmailMessageStaticForensicRefs = Readonly<{
     senderDomainRef?: Ref<HTMLSpanElement>;
     pressureRef?: Ref<HTMLElement>;
     ctaRef?: Ref<HTMLSpanElement>;
+    visibleHighlightKeys?: readonly F3ForensicTargetKey[];
+    animatedHighlightKey?: F3ForensicTargetKey;
 }>;
 
 function splitSenderEmail(email: string): { localWithAt: string; domain: string } {
@@ -32,8 +35,13 @@ export default function F3EmailMessageStatic({
     senderDomainRef,
     pressureRef,
     ctaRef,
+    visibleHighlightKeys = ["sender-domain", "pressure", "cta"],
+    animatedHighlightKey,
 }: F3EmailMessageStaticForensicRefs) {
     const { localWithAt, domain } = splitSenderEmail(F3_SENDER_EMAIL);
+    const senderHighlightVisible = visibleHighlightKeys.includes("sender-domain");
+    const pressureHighlightVisible = visibleHighlightKeys.includes("pressure");
+    const ctaHighlightVisible = visibleHighlightKeys.includes("cta");
 
     return (
         <div className="f3-message-scale-root grid w-full max-w-[44rem] grid-cols-[2.5em_minmax(0,1fr)] gap-x-3 md:grid-cols-[2.75em_minmax(0,1fr)] md:gap-x-4">
@@ -75,6 +83,13 @@ export default function F3EmailMessageStatic({
                         <span
                             ref={senderDomainRef}
                             data-f3-forensic-target="sender-domain"
+                            data-reveal={
+                                !senderHighlightVisible
+                                    ? "hidden"
+                                    : animatedHighlightKey === "sender-domain"
+                                      ? "animating"
+                                      : "visible"
+                            }
                             className="f3-forensic-highlight f3-forensic-highlight--inline shrink-0"
                         >
                             {domain}
@@ -110,6 +125,13 @@ export default function F3EmailMessageStatic({
                     account{" "}
                     <strong
                         ref={pressureRef}
+                        data-reveal={
+                            !pressureHighlightVisible
+                                ? "hidden"
+                                : animatedHighlightKey === "pressure"
+                                  ? "animating"
+                                  : "visible"
+                        }
                         className="f3-forensic-highlight f3-forensic-highlight--inline font-bold text-white/[0.88]"
                         data-f3-forensic-target="pressure"
                     >
@@ -128,6 +150,13 @@ export default function F3EmailMessageStatic({
                 >
                     <span
                         ref={ctaRef}
+                        data-reveal={
+                            !ctaHighlightVisible
+                                ? "hidden"
+                                : animatedHighlightKey === "cta"
+                                  ? "animating"
+                                  : "visible"
+                        }
                         className="f3-forensic-highlight--cta-ring pointer-events-none inline-flex rounded-[10px]"
                         data-f3-forensic-target="cta"
                     >

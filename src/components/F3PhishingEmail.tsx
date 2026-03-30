@@ -154,13 +154,13 @@ const CONSEQUENCE_SUBLINE_TO_CTA_PAUSE_SEC = 0.55;
 const CONSEQUENCE_SUBLINE = "One rushed decision can become an incident.";
 const CONSEQUENCE_CTA_LABEL = "What now?";
 
-/** Auto-advance if “What now?” is untouched (~2.85s after focus + timer start). */
-const CONSEQUENCE_AUTO_ADVANCE_MS = 2850;
+/** Auto-advance if “What now?” is untouched (~1.85s after focus + timer start). */
+const CONSEQUENCE_AUTO_ADVANCE_MS = 1850;
 
 const CONSEQUENCE_EXIT_HOLD_MS = 320;
 const CONSEQUENCE_EXIT_REVEAL_MS = 460;
 const CONSEQUENCE_EXIT_EASE = "power2.inOut";
-const CONSEQUENCE_MAIL_STAGE_DURATION_MS = 2500;
+const CONSEQUENCE_MAIL_STAGE_DURATION_MS = 3900;
 const CONSEQUENCE_MAIL_STAGE_BACKDROP_RATIO = 0.92;
 const CONSEQUENCE_MAIL_STAGE_EASE = "sine.inOut";
 const CONSEQUENCE_DUST_PARTICLES = [
@@ -545,6 +545,7 @@ function F3ClientReskinOverlay({
     const rootRef = useRef<HTMLDivElement>(null);
     const panelRef = useRef<HTMLDivElement>(null);
     const mineralRef = useRef<HTMLDivElement>(null);
+    const sourceTileRef = useRef<HTMLDivElement>(null);
     const sourcePulseRef = useRef<HTMLDivElement>(null);
     const sweepRef = useRef<HTMLDivElement>(null);
     const sweepWakeRef = useRef<HTMLDivElement>(null);
@@ -558,6 +559,7 @@ function F3ClientReskinOverlay({
         const root = rootRef.current;
         const panel = panelRef.current;
         const mineral = mineralRef.current;
+        const sourceTile = sourceTileRef.current;
         const sourcePulse = sourcePulseRef.current;
         const sweep = sweepRef.current;
         const sweepWake = sweepWakeRef.current;
@@ -570,6 +572,7 @@ function F3ClientReskinOverlay({
             !root ||
             !panel ||
             !mineral ||
+            !sourceTile ||
             !sourcePulse ||
             !sweep ||
             !sweepWake ||
@@ -598,7 +601,19 @@ function F3ClientReskinOverlay({
                 gsap.set(mineral, { opacity: 0.74 });
                 gsap.set(gloss, { opacity: 0.28 });
                 gsap.set(settleSheen, { opacity: 0, xPercent: -18 });
-                gsap.set(sourcePulse, { opacity: 0, scale: 2.4 });
+                gsap.set(sourceTile, {
+                    opacity: 0,
+                    scaleX: 0.82,
+                    scaleY: 0.82,
+                    borderRadius: 12,
+                    filter: "blur(0px)",
+                });
+                gsap.set(sourcePulse, {
+                    opacity: 0,
+                    scaleX: 2.4,
+                    scaleY: 0.96,
+                    rotate: -24,
+                });
                 gsap.set(sweep, {
                     opacity: 0,
                     x: rootWidth * 0.82,
@@ -636,18 +651,32 @@ function F3ClientReskinOverlay({
                 opacity: 1,
                 clipPath: initialGeometry.clipPath,
             });
-            gsap.set(mineral, { opacity: 0.16 });
+                gsap.set(mineral, { opacity: 0.16 });
                 gsap.set(gloss, { opacity: 0.08 });
                 gsap.set(settleSheen, { opacity: 0, xPercent: -18 });
+                gsap.set(sourceTile, {
+                    opacity: 0,
+                    scaleX: 0.98,
+                    scaleY: 0.98,
+                    borderRadius: 12,
+                    x: sourceX,
+                    y: sourceY,
+                    xPercent: -50,
+                    yPercent: -50,
+                    filter: "blur(0px)",
+                    force3D: true,
+                });
                 gsap.set(sourcePulse, {
-                    opacity: 0.42,
-                    scale: 0.18,
-                x: sourceX,
-                y: sourceY,
-                xPercent: -50,
-                yPercent: -50,
-                force3D: true,
-            });
+                    opacity: 0,
+                    scaleX: 0.58,
+                    scaleY: 0.2,
+                    rotate: -24,
+                    x: sourceX,
+                    y: sourceY,
+                    xPercent: -50,
+                    yPercent: -50,
+                    force3D: true,
+                });
             gsap.set(sweep, {
                 opacity: initialGeometry.edgeOpacity,
                 x: initialGeometry.edgeCenterX,
@@ -692,26 +721,45 @@ function F3ClientReskinOverlay({
                     onComplete();
                 },
             });
+            const sourceClickLead = 0;
+            const sourceMaterialLag =
+                0.014 * REMEDIATION_RESKIN_DEBUG_SLOW_MULTIPLIER;
+            const sourceGlossLag =
+                0.04 * REMEDIATION_RESKIN_DEBUG_SLOW_MULTIPLIER;
+            const sourcePulseExpandLead =
+                0.075 * REMEDIATION_RESKIN_DEBUG_SLOW_MULTIPLIER;
 
             tl.to(
-                revealState,
-                {
-                    progress: 1,
-                    duration: 0.72 * REMEDIATION_RESKIN_DEBUG_SLOW_MULTIPLIER,
-                    ease: "cubic-bezier(0.22, 1, 0.36, 1)",
-                    onUpdate: renderReveal,
-                },
-                0
-            )
+                    revealState,
+                    {
+                        progress: 1,
+                        duration: 0.72 * REMEDIATION_RESKIN_DEBUG_SLOW_MULTIPLIER,
+                        ease: "cubic-bezier(0.22, 1, 0.36, 1)",
+                        onUpdate: renderReveal,
+                    },
+                    sourceClickLead
+                )
+                .to(
+                    sourcePulse,
+                    {
+                        opacity: 0.18,
+                        scaleX: 1.1,
+                        scaleY: 0.34,
+                        duration: sourcePulseExpandLead,
+                        ease: "power1.out",
+                    },
+                    sourceClickLead
+                )
                 .to(
                     sourcePulse,
                     {
                         opacity: 0,
-                        scale: 2.7,
-                        duration: 0.38 * REMEDIATION_RESKIN_DEBUG_SLOW_MULTIPLIER,
+                        scaleX: 2.7,
+                        scaleY: 0.92,
+                        duration: 0.28 * REMEDIATION_RESKIN_DEBUG_SLOW_MULTIPLIER,
                         ease: "power2.out",
                     },
-                    0
+                    sourceClickLead + sourcePulseExpandLead * 0.72
                 )
                 .to(
                     mineral,
@@ -720,7 +768,7 @@ function F3ClientReskinOverlay({
                         duration: 0.52 * REMEDIATION_RESKIN_DEBUG_SLOW_MULTIPLIER,
                         ease: "power2.out",
                     },
-                    0.04
+                    sourceClickLead + sourceMaterialLag
                 )
                 .to(
                     gloss,
@@ -729,7 +777,7 @@ function F3ClientReskinOverlay({
                         duration: 0.46 * REMEDIATION_RESKIN_DEBUG_SLOW_MULTIPLIER,
                         ease: "power2.out",
                     },
-                    0.08
+                    sourceClickLead + sourceGlossLag
                 )
                 .to(
                     sweepWake,
@@ -740,7 +788,7 @@ function F3ClientReskinOverlay({
                         duration: 0.68 * REMEDIATION_RESKIN_DEBUG_SLOW_MULTIPLIER,
                         ease: "none",
                     },
-                    0
+                    sourceClickLead
                 )
                 .to(
                     sweepBody,
@@ -751,7 +799,7 @@ function F3ClientReskinOverlay({
                         duration: 0.64 * REMEDIATION_RESKIN_DEBUG_SLOW_MULTIPLIER,
                         ease: "none",
                     },
-                    0.02
+                    sourceClickLead + sourceMaterialLag
                 )
                 .to(
                     sweepLip,
@@ -762,7 +810,7 @@ function F3ClientReskinOverlay({
                         duration: 0.48 * REMEDIATION_RESKIN_DEBUG_SLOW_MULTIPLIER,
                         ease: "power2.out",
                     },
-                    0.06
+                    sourceClickLead + sourceGlossLag
                 )
                 .to(
                     sweepGrain,
@@ -773,7 +821,7 @@ function F3ClientReskinOverlay({
                         duration: 0.72 * REMEDIATION_RESKIN_DEBUG_SLOW_MULTIPLIER,
                         ease: "none",
                     },
-                    0
+                    sourceClickLead
                 )
                 .to(
                     sweep,
@@ -864,6 +912,34 @@ function F3ClientReskinOverlay({
                         opacity: 0,
                     }}
                 />
+                <div
+                    ref={sourceTileRef}
+                    className="absolute h-14 w-14 overflow-hidden rounded-[12px]"
+                    style={{
+                        background:
+                            "linear-gradient(160deg, rgba(255,255,255,0.12) 0%, rgba(184,198,214,0.06) 18%, rgba(76,82,96,0.12) 42%, rgba(18,16,24,0.08) 66%, rgba(6,4,10,0.18) 100%)",
+                        boxShadow:
+                            "inset 0 0 0 1px rgba(255,255,255,0.06), inset 0 -10px 18px rgba(10,8,16,0.18), 0 10px 24px rgba(0,0,0,0.18)",
+                        opacity: 0,
+                    }}
+                >
+                    <div
+                        className="absolute inset-0"
+                        style={{
+                            background:
+                                "linear-gradient(180deg, rgba(255,255,255,0.14) 0%, rgba(255,255,255,0.04) 20%, rgba(255,255,255,0) 48%), linear-gradient(122deg, rgba(255,255,255,0) 22%, rgba(255,255,255,0.1) 40%, rgba(255,255,255,0.02) 58%, rgba(255,255,255,0) 76%)",
+                            mixBlendMode: "screen",
+                        }}
+                    />
+                    <div
+                        className="absolute inset-[22%] rounded-[10px]"
+                        style={{
+                            background:
+                                "radial-gradient(circle at 50% 44%, rgba(167,139,250,0.42) 0%, rgba(124,58,237,0.2) 34%, rgba(255,255,255,0) 78%)",
+                            filter: "blur(4px)",
+                        }}
+                    />
+                </div>
                 <div
                     ref={glossRef}
                     className="absolute inset-0 rounded-[22px]"
@@ -2485,11 +2561,13 @@ export default function F3PhishingEmail({
             (
                 resolvedPhase === "remediationSlab" ||
                 resolvedPhase === "remediationDocked" ||
+                resolvedPhase === "remediationTransforming" ||
                 manualSlabStage !== undefined
             ) ? (
                 <F3RemediationSlab
                     prefersReducedMotion={prefersReducedMotion}
                     debugStage={manualSlabStage ?? labSlabStage}
+                    handoffActive={resolvedPhase === "remediationTransforming"}
                     enableDocking={!manualMode && !(hasLabRange && labRange.end === "end-slab-entrance")}
                     dockTargetSelectors={REMEDIATION_DOCK_TARGET_SELECTORS}
                     onDockComplete={handleRemediationDockComplete}

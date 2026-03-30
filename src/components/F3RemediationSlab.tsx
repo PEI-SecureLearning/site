@@ -21,6 +21,7 @@ const SLAB_DOCK_SETTLE_NUDGE_DURATION = 0.12;
 const SLAB_DOCK_SETTLE_RETURN_DURATION = 0.26;
 const SLAB_DOCK_FALLBACK_WIDTH = 56;
 const SLAB_DOCK_FALLBACK_HEIGHT = 56;
+const SLAB_PRE_DOCK_HOLD_DURATION = 2.15;
 
 function getDockTileRadius(width: number, height: number) {
     return Math.max(6, Math.round(Math.min(width, height) * 0.18));
@@ -40,6 +41,7 @@ export default function F3RemediationSlab({
     placement = "overlay",
     animateOnMount = true,
     debugStage,
+    handoffActive = false,
     enableDocking = false,
     dockTargetSelectors,
     onDockComplete,
@@ -48,6 +50,7 @@ export default function F3RemediationSlab({
     placement?: "overlay" | "inline";
     animateOnMount?: boolean;
     debugStage?: F3RemediationSlabDebugStage;
+    handoffActive?: boolean;
     enableDocking?: boolean;
     dockTargetSelectors?: readonly string[];
     onDockComplete?: () => void;
@@ -606,37 +609,8 @@ export default function F3RemediationSlab({
                                 ease: "power2.in",
                             },
                             "<"
-                        )
-                        .to(
-                            slab,
-                            {
-                                y: deltaY,
-                                scale: 0.95,
-                                duration: SLAB_DOCK_SETTLE_RETURN_DURATION,
-                                ease: "back.out(1.45)",
-                            },
-                            ">"
-                        )
-                        .to(
-                            glow,
-                            {
-                                opacity: 0.04,
-                                scale: 0.14,
-                                duration: SLAB_DOCK_SETTLE_RETURN_DURATION,
-                                ease: "back.out(1.2)",
-                            },
-                            "<"
-                        )
-                        .to(
-                            dockGloss,
-                            {
-                                opacity: 1,
-                                duration: SLAB_DOCK_SETTLE_RETURN_DURATION,
-                                ease: "power2.out",
-                            },
-                            "<"
                         );
-                }, "+=0.9");
+                }, `+=${SLAB_PRE_DOCK_HOLD_DURATION}`);
             }
         }, root);
 
@@ -652,6 +626,118 @@ export default function F3RemediationSlab({
         placement,
         prefersReducedMotion,
     ]);
+
+    useLayoutEffect(() => {
+        const slab = slabRef.current;
+        const glow = glowRef.current;
+        const icon = iconRef.current;
+        const dockMetal = dockMetalRef.current;
+        const dockGloss = dockGlossRef.current;
+        if (
+            !handoffActive ||
+            placement !== "overlay" ||
+            prefersReducedMotion ||
+            !slab ||
+            !glow ||
+            !icon ||
+            !dockMetal ||
+            !dockGloss
+        ) {
+            return;
+        }
+
+        const ctx = gsap.context(() => {
+            gsap.timeline()
+                .to(
+                    slab,
+                    {
+                        opacity: 0.78,
+                        scaleX: 0.94,
+                        scaleY: 0.3,
+                        borderRadius: 16,
+                        filter: "blur(6px)",
+                        duration: 0.14,
+                        ease: "power1.out",
+                    },
+                    0
+                )
+                .to(
+                    slab,
+                    {
+                        opacity: 0,
+                        scaleX: 0.88,
+                        scaleY: 0.18,
+                        borderRadius: 18,
+                        filter: "blur(16px)",
+                        duration: 0.34,
+                        ease: "cubic-bezier(0.22, 1, 0.36, 1)",
+                    },
+                    0.12
+                )
+                .to(
+                    icon,
+                    {
+                        opacity: 0.78,
+                        scale: 0.92,
+                        filter: "blur(3px)",
+                        duration: 0.14,
+                        ease: "power1.out",
+                    },
+                    0
+                )
+                .to(
+                    icon,
+                    {
+                        opacity: 0,
+                        scale: 0.88,
+                        filter: "blur(8px)",
+                        duration: 0.32,
+                        ease: "cubic-bezier(0.22, 1, 0.36, 1)",
+                    },
+                    0.12
+                )
+                .to(
+                    [dockMetal, dockGloss],
+                    {
+                        opacity: 0.42,
+                        duration: 0.1,
+                        ease: "power1.out",
+                    },
+                    0
+                )
+                .to(
+                    [dockMetal, dockGloss],
+                    {
+                        opacity: 0,
+                        duration: 0.28,
+                        ease: "power1.out",
+                    },
+                    0.1
+                )
+                .to(
+                    glow,
+                    {
+                        opacity: 0.026,
+                        scale: 0.1,
+                        duration: 0.1,
+                        ease: "power1.out",
+                    },
+                    0
+                )
+                .to(
+                    glow,
+                    {
+                        opacity: 0.01,
+                        scale: 0.06,
+                        duration: 0.3,
+                        ease: "power1.out",
+                    },
+                    0.1
+                );
+        }, slab);
+
+        return () => ctx.revert();
+    }, [handoffActive, placement, prefersReducedMotion]);
 
     const slabMarkup = (
         <div

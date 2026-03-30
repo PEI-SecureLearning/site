@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useRef, useState } from "react";
 import { LogoLoop } from "./LogoLoop";
 
 const logos = [
@@ -24,8 +25,43 @@ const logos = [
 ];
 
 export default function LogoMarquee() {
+    const sectionRef = useRef<HTMLElement | null>(null);
+    const [isOffscreen, setIsOffscreen] = useState(false);
+    const [isDocumentHidden, setIsDocumentHidden] = useState(false);
+
+    useEffect(() => {
+        const section = sectionRef.current;
+        if (!section) return;
+
+        if (typeof IntersectionObserver === "undefined") {
+            setIsOffscreen(false);
+            return;
+        }
+
+        const observer = new IntersectionObserver(
+            ([entry]) => setIsOffscreen(!entry.isIntersecting),
+            {
+                threshold: 0.05,
+                rootMargin: "25% 0px 25% 0px",
+            }
+        );
+
+        observer.observe(section);
+
+        return () => observer.disconnect();
+    }, []);
+
+    useEffect(() => {
+        const update = () => setIsDocumentHidden(document.hidden);
+
+        update();
+        document.addEventListener("visibilitychange", update);
+
+        return () => document.removeEventListener("visibilitychange", update);
+    }, []);
+
     return (
-        <section className="full-bleed relative pt-0 pb-10">
+        <section ref={sectionRef} className="full-bleed relative pt-0 pb-10">
             <div className="mx-auto max-w-[1100px] px-6 text-center">
                 <p className="mb-6 text-xs font-semibold tracking-[0.22em] uppercase text-[var(--muted)]">
                     Developed in partnership with
@@ -48,6 +84,7 @@ export default function LogoMarquee() {
                     fadeOutColor="var(--background)"
                     className="logo-marquee-filter mt-4"
                     ariaLabel="Partner institution logos"
+                    isPaused={isOffscreen || isDocumentHidden}
                 />
             </div>
         </section>

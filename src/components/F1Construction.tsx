@@ -1,13 +1,25 @@
 "use client";
 import React, { useEffect, useState } from "react";
 
-export default function F1Construction() {
+type F1ConstructionProps = Readonly<{
+    isAnimated?: boolean;
+}>;
+
+export default function F1Construction({ isAnimated = true }: F1ConstructionProps) {
     const [mounted, setMounted] = useState(false);
     useEffect(() => setMounted(true), []);
 
     return (
-        <div className="relative w-full h-[300px] md:h-[500px] lg:h-[700px] overflow-hidden bg-[#0A0A0A] flex items-center justify-center font-sans">
+        <div
+            className="f1-construction-scene relative w-full h-[300px] md:h-[500px] lg:h-[700px] overflow-hidden bg-[#0A0A0A] flex items-center justify-center font-sans"
+            data-animated={isAnimated}
+        >
             <style dangerouslySetInnerHTML={{__html: `
+                .f1-construction-scene[data-animated="false"] *,
+                .f1-construction-scene[data-animated="false"] *::before,
+                .f1-construction-scene[data-animated="false"] *::after {
+                    animation-play-state: paused !important;
+                }
                 @keyframes marquee {
                     0% { transform: translateX(0); }
                     100% { transform: translateX(-50%); }

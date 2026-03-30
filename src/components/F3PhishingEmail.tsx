@@ -1973,9 +1973,7 @@ export default function F3PhishingEmail({
             event.preventDefault();
 
             const forward = event.deltaY > 0;
-            const canReleaseFromDock =
-                resolvedPhase === "remediationTransformed" ||
-                resolvedPhase === "remediationSettled";
+            const canReleaseFromDock = resolvedPhase === "remediationSettled";
 
             if (canReleaseFromDock && forward) {
                 clearWheelGestureTimer();
@@ -2050,9 +2048,7 @@ export default function F3PhishingEmail({
 
             const isForwardKey =
                 event.key === "ArrowDown" || event.key === "PageDown" || event.key === " ";
-            const canReleaseFromDock =
-                resolvedPhase === "remediationTransformed" ||
-                resolvedPhase === "remediationSettled";
+            const canReleaseFromDock = resolvedPhase === "remediationSettled";
 
             if (canReleaseFromDock && isForwardKey) {
                 requestSequenceRelease();
@@ -2071,9 +2067,7 @@ export default function F3PhishingEmail({
 
         const handleTouchMove = (event: TouchEvent) => {
             event.preventDefault();
-            const canReleaseFromDock =
-                resolvedPhase === "remediationTransformed" ||
-                resolvedPhase === "remediationSettled";
+            const canReleaseFromDock = resolvedPhase === "remediationSettled";
 
             if (canReleaseFromDock) {
                 const currentY = event.touches[0]?.clientY;
@@ -2186,6 +2180,11 @@ export default function F3PhishingEmail({
         resolvedPhase === "remediationSettled" ||
         resolvedPhase === "sequenceComplete";
     const showRemediationUi = false;
+    const remediationPanelVisibleAnnotationKeys = [
+        "sender-domain",
+        "pressure",
+        "cta",
+    ] as const;
 
     return (
         <div
@@ -2248,16 +2247,8 @@ export default function F3PhishingEmail({
                             <div className="relative min-h-0 min-w-0 flex-1 overflow-visible px-3 pb-8 pt-5 md:px-5 md:pt-6 md:pb-10 lg:px-6">
                                 {showTransformedSurface ? null : showRemediationUi ? (
                                     <F3RemediationReaderPanel
-                                        visibleAnnotationKeys={
-                                            resolvedPhase === "remediation"
-                                                ? (["sender-domain"] as const)
-                                                : ["sender-domain", "pressure", "cta"]
-                                        }
-                                        animatedAnnotationKey={
-                                            resolvedPhase === "remediation"
-                                                ? ("sender-domain" as F3ForensicTargetKey)
-                                                : undefined
-                                        }
+                                        visibleAnnotationKeys={remediationPanelVisibleAnnotationKeys}
+                                        animatedAnnotationKey={undefined}
                                         forensicLayouts={forensicLayouts}
                                         forensicEditor={forensicEditor}
                                     />

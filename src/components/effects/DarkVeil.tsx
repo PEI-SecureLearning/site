@@ -79,10 +79,27 @@ void main(){
 
 interface DarkVeilProps {
   fadeStart?: string; // e.g., "92%" — where the bottom fade begins
+  isPaused?: boolean;
 }
 
-export default function DarkVeil({ fadeStart }: DarkVeilProps) {
+export default function DarkVeil({ fadeStart, isPaused = false }: DarkVeilProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const pausedRef = useRef(isPaused);
+  const frameRef = useRef<number | null>(null);
+  const startLoopRef = useRef<(() => void) | null>(null);
+  const stopLoopRef = useRef<(() => void) | null>(null);
+
+  useEffect(() => {
+    pausedRef.current = isPaused;
+    if (isPaused) {
+      stopLoopRef.current?.();
+      return;
+    }
+
+    if (!document.hidden) {
+      startLoopRef.current?.();
+    }
+  }, [isPaused]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -128,11 +145,22 @@ export default function DarkVeil({ fadeStart }: DarkVeilProps) {
     resize();
 
     const start = performance.now();
-    let frame = 0;
     let disposed = false;
+    let isRunning = false;
+
+    const stopLoop = () => {
+      if (frameRef.current !== null) {
+        cancelAnimationFrame(frameRef.current);
+        frameRef.current = null;
+      }
+      isRunning = false;
+    };
 
     const loop = () => {
+      frameRef.current = null;
+      isRunning = false;
       if (disposed) return;
+      if (pausedRef.current || document.hidden) return;
       // Skip rendering if context is lost
       if (typeof gl.isContextLost === "function" && gl.isContextLost()) return;
       try {
@@ -142,14 +170,36 @@ export default function DarkVeil({ fadeStart }: DarkVeilProps) {
         // Bail out silently if rendering fails during route transitions
         return;
       }
-      frame = requestAnimationFrame(loop);
+      frameRef.current = requestAnimationFrame(loop);
+      isRunning = true;
     };
 
-    loop();
+    const startLoop = () => {
+      if (disposed || isRunning || pausedRef.current || document.hidden) return;
+      frameRef.current = requestAnimationFrame(loop);
+      isRunning = true;
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.hidden || pausedRef.current) {
+        stopLoop();
+        return;
+      }
+
+      startLoop();
+    };
+
+    startLoopRef.current = startLoop;
+    stopLoopRef.current = stopLoop;
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    startLoop();
 
     return () => {
       disposed = true;
-      cancelAnimationFrame(frame);
+      stopLoop();
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      startLoopRef.current = null;
+      stopLoopRef.current = null;
       window.removeEventListener("resize", resize);
       // Clean up OGL resources safely
       geometry.remove();

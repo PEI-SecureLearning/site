@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import Reveal from "./Reveal";
 import { gsap } from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
@@ -162,13 +162,16 @@ function BrowserMockup({
     );
 }
 
-function FeatureBrowserCanvas({ feature }: Readonly<{ feature: Feature }>) {
+function FeatureBrowserCanvas({
+    feature,
+    isAnimated = true,
+}: Readonly<{ feature: Feature; isAnimated?: boolean }>) {
     return (
         <div className="relative h-[300px] w-full overflow-hidden bg-[#0A0A0A] md:h-[500px] lg:h-[700px]">
             {feature.id === "f1" ? (
-                <F1Construction />
+                <F1Construction isAnimated={isAnimated} />
             ) : (
-                <F2Construction />
+                <F2Construction isAnimated={isAnimated} />
             )}
         </div>
     );
@@ -265,10 +268,34 @@ function FeatureCardPanel({ feature }: Readonly<{ feature: Feature }>) {
 }
 
 function MobileFeatureBlock({ feature }: Readonly<{ feature: Feature }>) {
+    const blockRef = useRef<HTMLDivElement>(null);
+    const [isAnimated, setIsAnimated] = useState(false);
     const mobileBrowserTransform = "translate3d(0, 0, 0) scale(1)";
 
+    useEffect(() => {
+        const block = blockRef.current;
+        if (!block) return;
+
+        if (typeof IntersectionObserver === "undefined") {
+            setIsAnimated(true);
+            return;
+        }
+
+        const observer = new IntersectionObserver(
+            ([entry]) => setIsAnimated(entry.isIntersecting),
+            {
+                threshold: 0.08,
+                rootMargin: "35% 0px 35% 0px",
+            }
+        );
+
+        observer.observe(block);
+
+        return () => observer.disconnect();
+    }, []);
+
     return (
-        <div className="md:hidden px-4 py-12">
+        <div ref={blockRef} className="md:hidden px-4 py-12">
             <div className="mx-auto flex w-full max-w-[29rem] flex-col gap-6">
                 <Reveal>
                     <div className="w-[calc(100%+2rem)] -mx-4">
@@ -277,7 +304,7 @@ function MobileFeatureBlock({ feature }: Readonly<{ feature: Feature }>) {
                             wrapperClassName="max-w-none px-0"
                             staticStyle={{ transform: mobileBrowserTransform }}
                         >
-                            <FeatureBrowserCanvas feature={feature} />
+                            <FeatureBrowserCanvas feature={feature} isAnimated={isAnimated} />
                         </BrowserMockup>
                     </div>
                 </Reveal>
@@ -306,6 +333,7 @@ function FeatureBlock({ feature }: Readonly<{ feature: Feature }>) {
     const entrySentinelRef = useRef<HTMLDivElement>(null);
     const browserRef = useRef<HTMLDivElement>(null);
     const cardRef = useRef<HTMLDivElement>(null);
+    const [isAnimated, setIsAnimated] = useState(false);
     const direction = feature.flip ? 1 : -1;
     const browserJustify = feature.flip ? "justify-end" : "justify-start";
     const cardJustify = feature.flip ? "justify-start" : "justify-end";
@@ -324,6 +352,14 @@ function FeatureBlock({ feature }: Readonly<{ feature: Feature }>) {
                 transformPerspective: 1400,
                 transformOrigin: cardTransformOrigin,
                 force3D: true,
+            });
+
+            ScrollTrigger.create({
+                trigger: sceneRef.current,
+                start: "top bottom",
+                end: "bottom top",
+                invalidateOnRefresh: true,
+                onToggle: (self) => setIsAnimated(self.isActive),
             });
 
             const tl = gsap.timeline({
@@ -421,7 +457,7 @@ function FeatureBlock({ feature }: Readonly<{ feature: Feature }>) {
                     className={`absolute inset-0 z-0 flex items-center px-4 pt-[5.75rem] md:px-10 md:pt-[6.75rem] lg:px-14 ${browserJustify}`}
                 >
                     <BrowserMockup flip={feature.flip} browserRef={browserRef}>
-                        <FeatureBrowserCanvas feature={feature} />
+                        <FeatureBrowserCanvas feature={feature} isAnimated={isAnimated} />
                     </BrowserMockup>
                 </div>
 
@@ -448,6 +484,37 @@ function FeatureBlock({ feature }: Readonly<{ feature: Feature }>) {
 /* ─── Main Feature Showcase ─────────────────────────────────── */
 
 export default function FeatureShowcase() {
+    const f3SentinelRef = useRef<HTMLDivElement>(null);
+    const [shouldMountF3, setShouldMountF3] = useState(false);
+
+    useEffect(() => {
+        if (shouldMountF3) return;
+
+        const sentinel = f3SentinelRef.current;
+        if (!sentinel) return;
+
+        if (typeof IntersectionObserver === "undefined") {
+            setShouldMountF3(true);
+            return;
+        }
+
+        const observer = new IntersectionObserver(
+            ([entry]) => {
+                if (!entry.isIntersecting) return;
+                setShouldMountF3(true);
+                observer.disconnect();
+            },
+            {
+                rootMargin: "180% 0px 120% 0px",
+                threshold: 0,
+            }
+        );
+
+        observer.observe(sentinel);
+
+        return () => observer.disconnect();
+    }, [shouldMountF3]);
+
     return (
         <section id="features" className="full-bleed py-24 md:py-32">
             <div className="mx-auto max-w-[1400px]">
@@ -463,7 +530,8 @@ export default function FeatureShowcase() {
                     ))}
                 </div>
             </div>
-            <F3StateOneScene />
+            <div ref={f3SentinelRef} className="h-px w-full" aria-hidden />
+            {shouldMountF3 ? <F3StateOneScene /> : <div className="h-[220vh] w-full" aria-hidden />}
         </section>
     );
 }

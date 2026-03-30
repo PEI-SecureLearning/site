@@ -350,7 +350,7 @@ export default function F3StateOneLabPage() {
                                     style={{ touchAction: "none" }}
                                     onPointerDown={handleTrackPointerDown}
                                 />
-                                {[
+                                {([
                                     {
                                         id: "start",
                                         label: "Start",
@@ -361,7 +361,11 @@ export default function F3StateOneLabPage() {
                                         label: "End",
                                         index: endIndex,
                                     },
-                                ].map((handle) => (
+                                ] satisfies ReadonlyArray<{
+                                    id: RangeHandle;
+                                    label: string;
+                                    index: number;
+                                }>).map((handle) => (
                                     <button
                                         key={handle.id}
                                         type="button"

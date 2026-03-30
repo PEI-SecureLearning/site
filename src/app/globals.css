@@ -1244,9 +1244,9 @@ header[data-scrolled="true"] {
     animation-timing-function: linear;
   }
 
-  38% {
+  11.01% {
     opacity: 0.9;
-    /* 38% → 100%: one straight ramp 0.9 → 0 */
+    /* 11.01% → 100%: one straight ramp 0.9 → 0 */
     animation-timing-function: linear;
   }
 

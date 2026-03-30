@@ -1716,6 +1716,13 @@ export default function F3PhishingEmail({
         setPhase("sequenceComplete");
     }, [onSequenceRelease]);
 
+    useEffect(() => {
+        if (manualMode || hasReleased) return;
+        if (resolvedPhase !== "remediationSettled") return;
+
+        requestSequenceRelease();
+    }, [hasReleased, manualMode, requestSequenceRelease, resolvedPhase]);
+
     const handleAnimatedAnnotationComplete = useCallback((key: F3ForensicTargetKey) => {
         if (key === "sender-domain") {
             setAnimatedAnnotationKey(undefined);

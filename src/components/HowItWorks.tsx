@@ -16,7 +16,7 @@ type HowItWorksStep = {
     id: string;
     number: string;
     title: string;
-    description: string;
+    captionLines: readonly [string, string];
     stageGlow: string;
     beamStyle: CSSProperties;
 };
@@ -26,8 +26,7 @@ const STEPS: readonly HowItWorksStep[] = [
         id: "import",
         number: "01",
         title: "Import your organization",
-        description:
-            "Connect LDAP/AD or upload CSV. Tag users by role, department, and risk profile.",
+        captionLines: ["Sync LDAP or CSV", "Group by team and risk"],
         stageGlow:
             "radial-gradient(38% 46% at 18% 20%, rgba(167,139,250,0.18) 0%, rgba(167,139,250,0.05) 34%, transparent 72%), radial-gradient(44% 54% at 84% 78%, rgba(124,58,237,0.14) 0%, transparent 76%)",
         beamStyle: {
@@ -41,8 +40,7 @@ const STEPS: readonly HowItWorksStep[] = [
         id: "build",
         number: "02",
         title: "Build your simulation",
-        description:
-            "Choose templates, set lure types, schedule waves, and segment by group.",
+        captionLines: ["Choose the template", "Target and schedule delivery"],
         stageGlow:
             "radial-gradient(34% 40% at 50% 18%, rgba(167,139,250,0.16) 0%, rgba(167,139,250,0.04) 32%, transparent 74%), radial-gradient(34% 42% at 80% 76%, rgba(124,58,237,0.16) 0%, transparent 72%)",
         beamStyle: {
@@ -56,8 +54,7 @@ const STEPS: readonly HowItWorksStep[] = [
         id: "launch",
         number: "03",
         title: "Launch and monitor",
-        description:
-            "Real-time tracking of clicks, credentials submitted, and time-to-click.",
+        captionLines: ["Track clicks and submissions", "See response signals live"],
         stageGlow:
             "radial-gradient(34% 42% at 76% 24%, rgba(167,139,250,0.15) 0%, rgba(167,139,250,0.04) 32%, transparent 72%), radial-gradient(40% 50% at 20% 84%, rgba(124,58,237,0.18) 0%, transparent 76%)",
         beamStyle: {
@@ -71,8 +68,10 @@ const STEPS: readonly HowItWorksStep[] = [
         id: "train",
         number: "04",
         title: "Train and improve",
-        description:
-            "See susceptibility trends and auto-assign follow-up training.",
+        captionLines: [
+            "Auto-assign remediation instantly",
+            "Verify behavior change over time",
+        ],
         stageGlow:
             "radial-gradient(36% 42% at 82% 20%, rgba(167,139,250,0.16) 0%, rgba(167,139,250,0.04) 30%, transparent 72%), radial-gradient(44% 50% at 18% 82%, rgba(124,58,237,0.18) 0%, transparent 76%)",
         beamStyle: {
@@ -94,68 +93,85 @@ function StagePanels({
     idBase: string;
 }>) {
     return (
-        <div className="relative mx-auto aspect-[1919/928] w-full max-w-[1024px] overflow-hidden rounded-[30px] border border-[rgba(167,139,250,0.14)] bg-[#04050a] shadow-[0_24px_70px_rgba(0,0,0,0.24),inset_0_1px_0_rgba(255,255,255,0.03)]">
-            <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.025)_0%,rgba(255,255,255,0.006)_18%,rgba(0,0,0,0.18)_64%,rgba(0,0,0,0.38)_100%)]" />
-            <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(120%_110%_at_50%_0%,rgba(31,25,49,0.18)_0%,rgba(4,5,10,0)_52%),linear-gradient(180deg,rgba(8,8,13,0.3)_0%,rgba(3,4,7,0.92)_100%)]" />
+        <div className="relative mx-auto w-full max-w-[1048px]">
+            <div
+                aria-hidden
+                className="pointer-events-none absolute inset-x-[18%] -bottom-6 h-10 rounded-full bg-[radial-gradient(50%_100%_at_50%_50%,rgba(124,58,237,0.42)_0%,rgba(124,58,237,0.14)_38%,rgba(124,58,237,0)_100%)] blur-[26px]"
+            />
 
-            {STEPS.map((step, index) => {
-                const isActive = index === activeIndex;
+            <div className="relative aspect-[1919/928] overflow-hidden rounded-[34px] border border-[rgba(167,139,250,0.14)] bg-[linear-gradient(180deg,#090b12_0%,#04050a_100%)] shadow-[0_26px_84px_rgba(0,0,0,0.32),0_4px_18px_rgba(0,0,0,0.2),inset_0_1px_0_rgba(255,255,255,0.04)]">
+                <div className="pointer-events-none absolute inset-[1px] rounded-[33px] bg-[linear-gradient(180deg,rgba(255,255,255,0.035)_0%,rgba(255,255,255,0.014)_10%,rgba(255,255,255,0)_30%)]" />
+                <div className="pointer-events-none absolute inset-x-[16%] top-0 h-px bg-[linear-gradient(90deg,transparent,rgba(255,255,255,0.24),transparent)] opacity-65" />
+                <div className="pointer-events-none absolute inset-x-[8%] bottom-[2%] h-[20%] rounded-[999px] bg-[radial-gradient(50%_100%_at_50%_50%,rgba(167,139,250,0.16)_0%,rgba(167,139,250,0.03)_55%,rgba(167,139,250,0)_100%)] blur-[22px]" />
 
-                return (
-                    <div
-                        key={step.id}
-                        id={`${idBase}-panel-${step.id}`}
-                        role="tabpanel"
-                        aria-labelledby={`${idBase}-tab-${step.id}`}
-                        aria-hidden={!isActive}
-                        tabIndex={isActive ? 0 : -1}
-                        className={`absolute inset-0 transition-[opacity,transform] duration-700 ease-out ${isActive ? "opacity-100" : "pointer-events-none opacity-0"}`}
-                    >
-                        <div
-                            className="absolute inset-0"
-                            style={{ background: step.stageGlow }}
-                        />
-                        <div
-                            className="absolute left-[7%] top-[18%] h-[54%] w-[44%] rounded-[999px] blur-[88px]"
-                            style={step.beamStyle}
-                        />
-                        <Image
-                            src="/assets/placeholders/how-it-works-admin-console.png"
-                            alt=""
-                            fill
-                            sizes="(min-width: 1024px) 1024px, 92vw"
-                            className="object-cover object-top"
-                            priority={index === 0}
-                        />
-                    </div>
-                );
-            })}
+                <div className="absolute inset-[12px] overflow-hidden rounded-[24px] border border-white/[0.045] bg-[#05060b] shadow-[inset_0_1px_0_rgba(255,255,255,0.04),inset_0_-32px_54px_rgba(0,0,0,0.3)]">
+                    <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.018)_0%,rgba(255,255,255,0.006)_18%,rgba(0,0,0,0.08)_64%,rgba(0,0,0,0.28)_100%)]" />
+                    <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(120%_110%_at_50%_0%,rgba(31,25,49,0.16)_0%,rgba(4,5,10,0)_52%),linear-gradient(180deg,rgba(8,8,13,0.22)_0%,rgba(3,4,7,0.86)_100%)]" />
 
-            <div className="pointer-events-none absolute inset-x-0 bottom-0 h-[46%] bg-[linear-gradient(180deg,rgba(3,4,8,0)_0%,rgba(3,4,8,0.3)_34%,rgba(3,4,8,0.82)_78%,rgba(3,4,8,0.96)_100%)]" />
-
-            <div className="absolute inset-x-0 bottom-0 px-8 pb-8 pt-20 md:px-10 md:pb-9">
-                <div className="relative min-h-[7.5rem] max-w-[28rem]">
                     {STEPS.map((step, index) => {
                         const isActive = index === activeIndex;
 
                         return (
                             <div
                                 key={step.id}
-                                className={`absolute inset-0 transition-[opacity,transform] duration-500 ease-out ${isActive ? "translate-y-0 opacity-100" : "pointer-events-none translate-y-4 opacity-0"}`}
+                                id={`${idBase}-panel-${step.id}`}
+                                role="tabpanel"
+                                aria-labelledby={`${idBase}-tab-${step.id}`}
                                 aria-hidden={!isActive}
+                                tabIndex={isActive ? 0 : -1}
+                                className={`absolute inset-0 transition-[opacity,transform] duration-700 ease-out ${isActive ? "opacity-100" : "pointer-events-none opacity-0"}`}
                             >
-                                <p className="text-[0.72rem] font-semibold uppercase tracking-[0.24em] text-[var(--accent-secondary)]">
-                                    {step.number}
-                                </p>
-                                <h3 className="mt-3 text-[1.8rem] font-semibold leading-[1.02] tracking-[-0.045em] text-white md:text-[2.05rem]">
-                                    {step.title}
-                                </h3>
-                                <p className="mt-3 max-w-[26ch] text-[1rem] leading-[1.7] text-white/60 md:text-[1.02rem]">
-                                    {step.description}
-                                </p>
+                                <div
+                                    className="absolute inset-0"
+                                    style={{ background: step.stageGlow }}
+                                />
+                                <div
+                                    className="absolute left-[7%] top-[18%] h-[54%] w-[44%] rounded-[999px] blur-[88px]"
+                                    style={step.beamStyle}
+                                />
+                                <Image
+                                    src="/assets/placeholders/how-it-works-admin-console.png"
+                                    alt=""
+                                    fill
+                                    sizes="(min-width: 1024px) 1024px, 92vw"
+                                    className="object-cover object-top"
+                                    priority={index === 0}
+                                />
                             </div>
                         );
                     })}
+
+                    <div className="pointer-events-none absolute inset-x-0 bottom-0 h-[44%] bg-[linear-gradient(180deg,rgba(4,5,8,0)_0%,rgba(5,6,10,0.16)_28%,rgba(5,6,10,0.74)_70%,rgba(5,6,10,0.95)_100%)]" />
+                    <div className="pointer-events-none absolute inset-x-[4%] bottom-[17%] h-px bg-[linear-gradient(90deg,rgba(255,255,255,0)_0%,rgba(255,255,255,0.1)_22%,rgba(255,255,255,0.04)_72%,rgba(255,255,255,0)_100%)]" />
+
+                    <div className="absolute inset-x-0 bottom-0 px-8 pb-8 pt-20 md:px-10 md:pb-9">
+                        <div className="relative min-h-[7.1rem] max-w-[29rem]">
+                            {STEPS.map((step, index) => {
+                                const isActive = index === activeIndex;
+
+                                return (
+                                    <div
+                                        key={step.id}
+                                        className={`absolute inset-0 transition-[opacity,transform] duration-500 ease-out ${isActive ? "translate-y-0 opacity-100" : "pointer-events-none translate-y-4 opacity-0"}`}
+                                        aria-hidden={!isActive}
+                                    >
+                                        <div className="h-px w-14 bg-[linear-gradient(90deg,#7c3aed_0%,rgba(167,139,250,0.24)_100%)]" />
+                                        <h3 className="mt-4 text-[1.82rem] font-semibold leading-[1.02] tracking-[-0.045em] text-white md:text-[2.04rem]">
+                                            {step.title}
+                                        </h3>
+                                        <div className="mt-4 space-y-1.5">
+                                            <p className="text-[1rem] font-medium leading-[1.45] text-white/82 md:text-[1.02rem]">
+                                                {step.captionLines[0]}
+                                            </p>
+                                            <p className="text-[1rem] leading-[1.45] text-white/56 md:text-[1.02rem]">
+                                                {step.captionLines[1]}
+                                            </p>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -372,26 +388,20 @@ export default function HowItWorks() {
         <section
             id="how-it-works"
             ref={sectionRef}
-            className="full-bleed relative py-24 md:py-30"
+            className="full-bleed relative pt-14 pb-24 md:pt-18 md:pb-28"
         >
-            <div
-                className="pointer-events-none absolute inset-x-0 top-12 h-[28rem] opacity-80"
-                aria-hidden
-                style={{
-                    background:
-                        "radial-gradient(54% 58% at 50% 0%, rgba(124,58,237,0.1) 0%, rgba(124,58,237,0.03) 34%, rgba(12,10,15,0) 78%)",
-                }}
-            />
-
             <div className="relative z-10 mx-auto max-w-[1240px] px-6">
                 <Reveal>
-                    <h2 className="text-center text-4xl font-semibold tracking-[-0.055em] text-white sm:text-5xl md:text-[4rem]">
-                        How It Works
-                    </h2>
+                    <div className="mx-auto max-w-[1048px]">
+                        <div className="w-14 h-px bg-[linear-gradient(90deg,#7c3aed_0%,rgba(167,139,250,0.14)_100%)]" />
+                        <h2 className="mt-5 text-[2.6rem] font-semibold tracking-[-0.065em] text-white sm:text-[3rem] md:text-[3.35rem]">
+                            How It Works
+                        </h2>
+                    </div>
                 </Reveal>
 
                 <Reveal delay={0.06}>
-                    <div className="mt-12">
+                    <div className="mt-9 md:mt-10">
                         <StagePanels
                             activeIndex={activeIndex}
                             idBase={idBase}

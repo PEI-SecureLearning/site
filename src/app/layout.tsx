@@ -41,26 +41,7 @@ export default function RootLayout({
             <Navbar />
           </Suspense>
           <main className="flex-1">{children}</main>
-          <footer className="border-t border-[rgba(167,139,250,0.12)] bg-[#121017] py-10 text-sm text-[var(--muted)]">
-            <div className="page-width flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
-              <div className="space-y-2 text-[0.95rem]">
-                <p className="text-[var(--foreground)]">
-                  © 2025 SecureLearning | PEI — Universidade de Aveiro.
-                </p>
-                <p>Advisors: João Almeida · Luís Batista · Filipe Gomes</p>
-              </div>
-              <div className="flex items-center gap-4">
-                <a
-                  href="https://github.com/PEI-SecureLearning"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-2 rounded-full border border-[rgba(167,139,250,0.18)] px-3 py-1.5 text-xs font-medium text-[var(--muted)] transition hover:border-[var(--accent-secondary)] hover:text-[var(--accent-secondary)] opacity-85 hover:opacity-100"
-                >
-                  GitHub Organization
-                </a>
-              </div>
-            </div>
-          </footer>
+          
         </div>
       </body>
     </html>

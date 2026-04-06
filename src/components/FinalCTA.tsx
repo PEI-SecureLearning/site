@@ -7,6 +7,19 @@ import LightRays from "./effects/LightRays";
 export default function FinalCTA() {
   const sectionRef = useRef<HTMLElement | null>(null);
   const [isPaused, setIsPaused] = useState(true);
+  const [isMobile, setIsMobile] = useState(false);
+  const [isTablet, setIsTablet] = useState(false);
+
+  /* Handle responsive light rays */
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth < 768);
+      setIsTablet(window.innerWidth >= 768 && window.innerWidth < 1024);
+    };
+    handleResize(); // Initial read
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
 
   /* Only run the WebGL rays when the section is in / near viewport */
   useEffect(() => {
@@ -53,17 +66,19 @@ export default function FinalCTA() {
         style={{ opacity: 0.9 }}
       >
         <LightRays
-          raysOrigin="bottom-center"
+          raysOrigin={(isMobile || isTablet) ? "bottom-center-elevated" : "bottom-center"}
           raysColor="#a78bfa"
           raysSpeed={0.45}
-          lightSpread={1.2}
-          rayLength={2.5}
-          fadeDistance={1.0}
-          saturation={0.8}
+          lightSpread={isMobile ? 2.0 : 1.2}
+          rayLength={isMobile ? 5.0 : 3.0}
+          fadeDistance={isMobile ? 2.5 : 1.0}
+          saturation={isMobile ? 1.0 : 0.8}
           followMouse={true}
-          mouseInfluence={0.08}
+          mouseInfluence={0.1}
           distortion={0.12}
           isPaused={isPaused}
+          hideOrigin={isMobile || isTablet}
+          originElementId={isMobile ? "github-logo-anchor" : (isTablet ? "tablet-anchor" : undefined)}
         />
       </div>
 
@@ -81,7 +96,7 @@ export default function FinalCTA() {
       <div className="relative z-10 flex min-h-[inherit] flex-col px-6">
         {/* CTA — positioned in the upper-center area */}
         <div className="flex flex-1 items-center justify-center pt-16 pb-8">
-          <div className="mx-auto flex max-w-[880px] flex-col items-center gap-8 text-center">
+          <div className="mx-auto flex max-w-[880px] flex-col items-center gap-8 text-center translate-y-3">
             <h2
               className="text-4xl font-semibold leading-[1.08] tracking-tight sm:text-5xl md:text-[3.75rem]"
               style={{ letterSpacing: "-0.04em" }}
@@ -106,11 +121,14 @@ export default function FinalCTA() {
           </div>
         </div>
 
-        {/* Footer — grounded strictly at the absolute base */}
+        {/* Footer */}
         <footer
           className="relative z-10 pb-8 pt-6 text-[14px] font-light tracking-[0.015em]"
           style={{ color: "rgba(237, 237, 237, 0.45)" }}
         >
+          {/* Invisible geometric anchor specifically to track the centralized top point of the footer on Tablet */}
+          <div id="tablet-anchor" className="absolute top-8 left-1/2 -translate-x-1/2 h-0 w-0 pointer-events-none" />
+
           {/* Huly-style layout: CSS Grid orchestrates mobile (1 col) and tablet (2x2), while Desktop uses Flexbox for the wide spread */}
           <div className="mx-auto grid w-full max-w-[1240px] grid-cols-1 justify-items-center gap-y-6 px-8 md:grid-cols-2 md:px-12 lg:flex lg:flex-row lg:items-center lg:justify-between">
             
@@ -139,6 +157,7 @@ export default function FinalCTA() {
             {/* 3. GitHub Icon (Small, no bounding box, identical to Huly's social treatment) */}
             <div className="order-1 flex items-center md:order-2 md:justify-self-end lg:order-none translate-y-[4px]">
               <a
+                id="github-logo-anchor"
                 href="https://github.com/PEI-SecureLearning"
                 target="_blank"
                 rel="noopener noreferrer"

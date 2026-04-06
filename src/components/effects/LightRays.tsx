@@ -20,6 +20,7 @@ type RaysOrigin =
   | "right"
   | "bottom-left"
   | "bottom-center"
+  | "bottom-center-elevated"
   | "bottom-right";
 
 const getAnchorAndDir = (
@@ -41,6 +42,8 @@ const getAnchorAndDir = (
       return { anchor: [0, (1 + 0.03) * h], dir: [0, -1] };
     case "bottom-center":
       return { anchor: [0.5 * w, (1 + 0.03) * h], dir: [0, -1] };
+    case "bottom-center-elevated":
+      return { anchor: [0.5 * w, (1 - 0.3) * h], dir: [0, -1] };
     case "bottom-right":
       return { anchor: [w, (1 + 0.03) * h], dir: [0, -1] };
     default:
@@ -75,6 +78,7 @@ uniform vec2  mousePos;
 uniform float mouseInfluence;
 uniform float noiseAmount;
 uniform float distortion;
+uniform float hideOrigin;
 
 varying vec2 vUv;
 
@@ -104,7 +108,10 @@ float rayStrength(vec2 raySource, vec2 rayRefDirection, vec2 coord,
     0.0, 1.0
   );
 
-  return baseStrength * lengthFalloff * fadeFalloff * spreadFactor * pulse;
+  // Erase the hard geometrical dot if hideOrigin is requested
+  float originFade = hideOrigin > 0.5 ? smoothstep(0.0, 60.0, distance) : 1.0;
+
+  return baseStrength * lengthFalloff * fadeFalloff * spreadFactor * pulse * originFade;
 }
 
 void mainImage(out vec4 fragColor, in vec2 fragCoord) {
@@ -178,6 +185,10 @@ interface LightRaysProps {
   style?: CSSProperties;
   /** Pause WebGL loop (e.g. when off-screen) */
   isPaused?: boolean;
+  /** Hide the geometric vertex (donut fade effect) */
+  hideOrigin?: boolean;
+  /** Optionally pin the origin exactly to a DOM element's center via ID */
+  originElementId?: string;
 }
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -201,6 +212,8 @@ export default function LightRays({
   className = "",
   style,
   isPaused = false,
+  hideOrigin = false,
+  originElementId,
 }: LightRaysProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const uniformsRef = useRef<any>(null);
@@ -270,6 +283,7 @@ export default function LightRays({
         mouseInfluence: { value: mouseInfluence },
         noiseAmount: { value: noiseAmount },
         distortion: { value: distortion },
+        hideOrigin: { value: hideOrigin ? 1.0 : 0.0 },
       };
       uniformsRef.current = uniforms;
 
@@ -291,8 +305,23 @@ export default function LightRays({
         const w = wCSS * dpr;
         const h = hCSS * dpr;
         uniforms.iResolution.value = [w, h];
+        
+        let finalAnchor: [number, number];
         const { anchor, dir } = getAnchorAndDir(raysOrigin, w, h);
-        uniforms.rayPos.value = anchor;
+        finalAnchor = anchor;
+
+        if (originElementId) {
+          const el = document.getElementById(originElementId);
+          if (el) {
+            const containerRect = containerRef.current.getBoundingClientRect();
+            const elRect = el.getBoundingClientRect();
+            const localX = (elRect.left + elRect.width / 2) - containerRect.left;
+            const localY = (elRect.top + elRect.height / 2) - containerRect.top;
+            finalAnchor = [localX * dpr, localY * dpr];
+          }
+        }
+
+        uniforms.rayPos.value = finalAnchor;
         uniforms.rayDir.value = raysDirection ?? dir;
       };
 
@@ -368,6 +397,8 @@ export default function LightRays({
     mouseInfluence,
     noiseAmount,
     distortion,
+    hideOrigin,
+    originElementId,
   ]);
 
   /* Mouse tracking */

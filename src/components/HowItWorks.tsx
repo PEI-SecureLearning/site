@@ -4,11 +4,13 @@ import Image from "next/image";
 import {
     useEffect,
     useId,
+    useMemo,
     useRef,
     useState,
     type CSSProperties,
     type KeyboardEvent,
     type MutableRefObject,
+    Fragment,
 } from "react";
 import Reveal from "./Reveal";
 
@@ -25,8 +27,8 @@ const STEPS: readonly HowItWorksStep[] = [
     {
         id: "import",
         number: "01",
-        title: "Import your organization",
-        captionLines: ["Sync LDAP or CSV", "Group by team and risk"],
+        title: "Import your org",
+        captionLines: ["Connect via LDAP/AD or CSV.", "Tag users by role, department, and risk profile."],
         stageGlow:
             "radial-gradient(38% 46% at 18% 20%, rgba(167,139,250,0.18) 0%, rgba(167,139,250,0.05) 34%, transparent 72%), radial-gradient(44% 54% at 84% 78%, rgba(124,58,237,0.14) 0%, transparent 76%)",
         beamStyle: {
@@ -39,8 +41,8 @@ const STEPS: readonly HowItWorksStep[] = [
     {
         id: "build",
         number: "02",
-        title: "Build your simulation",
-        captionLines: ["Choose the template", "Target and schedule delivery"],
+        title: "Design your campaign",
+        captionLines: ["Choose templates, set lure types, schedule waves, segment by group.", ""],
         stageGlow:
             "radial-gradient(34% 40% at 50% 18%, rgba(167,139,250,0.16) 0%, rgba(167,139,250,0.04) 32%, transparent 74%), radial-gradient(34% 42% at 80% 76%, rgba(124,58,237,0.16) 0%, transparent 72%)",
         beamStyle: {
@@ -53,8 +55,8 @@ const STEPS: readonly HowItWorksStep[] = [
     {
         id: "launch",
         number: "03",
-        title: "Launch and monitor",
-        captionLines: ["Track clicks and submissions", "See response signals live"],
+        title: "Launch & monitor",
+        captionLines: ["Real-time tracking of clicks, credentials submitted, and time-to-click.", ""],
         stageGlow:
             "radial-gradient(34% 42% at 76% 24%, rgba(167,139,250,0.15) 0%, rgba(167,139,250,0.04) 32%, transparent 72%), radial-gradient(40% 50% at 20% 84%, rgba(124,58,237,0.18) 0%, transparent 76%)",
         beamStyle: {
@@ -67,10 +69,10 @@ const STEPS: readonly HowItWorksStep[] = [
     {
         id: "train",
         number: "04",
-        title: "Train and improve",
+        title: "Review & improve",
         captionLines: [
-            "Auto-assign remediation instantly",
-            "Verify behavior change over time",
+            "Export KPIs, see susceptibility trends, and auto-assign follow-up training.",
+            "",
         ],
         stageGlow:
             "radial-gradient(36% 42% at 82% 20%, rgba(167,139,250,0.16) 0%, rgba(167,139,250,0.04) 30%, transparent 72%), radial-gradient(44% 50% at 18% 82%, rgba(124,58,237,0.18) 0%, transparent 76%)",
@@ -83,7 +85,7 @@ const STEPS: readonly HowItWorksStep[] = [
     },
 ] as const;
 
-const AUTOPLAY_INTERVAL_MS = 1900;
+const AUTOPLAY_INTERVAL_MS = 6000;
 
 function StagePanels({
     activeIndex,
@@ -93,264 +95,235 @@ function StagePanels({
     idBase: string;
 }>) {
     return (
-        <div className="relative mx-auto w-full max-w-[1048px]">
-            <div
-                aria-hidden
-                className="pointer-events-none absolute inset-x-[18%] -bottom-6 h-10 rounded-full bg-[radial-gradient(50%_100%_at_50%_50%,rgba(124,58,237,0.42)_0%,rgba(124,58,237,0.14)_38%,rgba(124,58,237,0)_100%)] blur-[26px]"
-            />
+        <div className="relative w-full max-w-[1240px]">
+            {/* The Frameless Media Stage */}
+            <div className="relative aspect-[16/10] overflow-hidden rounded-[20px] bg-[#05060b] shadow-[0_32px_96px_rgba(0,0,0,0.5),0_0_0_1px_rgba(255,255,255,0.08)]">
+                
+                {STEPS.map((step, index) => {
+                    const isActive = index === activeIndex;
 
-            <div className="relative aspect-[1919/928] overflow-hidden rounded-[34px] border border-[rgba(167,139,250,0.14)] bg-[linear-gradient(180deg,#090b12_0%,#04050a_100%)] shadow-[0_26px_84px_rgba(0,0,0,0.32),0_4px_18px_rgba(0,0,0,0.2),inset_0_1px_0_rgba(255,255,255,0.04)]">
-                <div className="pointer-events-none absolute inset-[1px] rounded-[33px] bg-[linear-gradient(180deg,rgba(255,255,255,0.035)_0%,rgba(255,255,255,0.014)_10%,rgba(255,255,255,0)_30%)]" />
-                <div className="pointer-events-none absolute inset-x-[16%] top-0 h-px bg-[linear-gradient(90deg,transparent,rgba(255,255,255,0.24),transparent)] opacity-65" />
-                <div className="pointer-events-none absolute inset-x-[8%] bottom-[2%] h-[20%] rounded-[999px] bg-[radial-gradient(50%_100%_at_50%_50%,rgba(167,139,250,0.16)_0%,rgba(167,139,250,0.03)_55%,rgba(167,139,250,0)_100%)] blur-[22px]" />
-
-                <div className="absolute inset-[12px] overflow-hidden rounded-[24px] border border-white/[0.045] bg-[#05060b] shadow-[inset_0_1px_0_rgba(255,255,255,0.04),inset_0_-32px_54px_rgba(0,0,0,0.3)]">
-                    <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.018)_0%,rgba(255,255,255,0.006)_18%,rgba(0,0,0,0.08)_64%,rgba(0,0,0,0.28)_100%)]" />
-                    <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(120%_110%_at_50%_0%,rgba(31,25,49,0.16)_0%,rgba(4,5,10,0)_52%),linear-gradient(180deg,rgba(8,8,13,0.22)_0%,rgba(3,4,7,0.86)_100%)]" />
-
-                    {STEPS.map((step, index) => {
-                        const isActive = index === activeIndex;
-
-                        return (
+                    return (
+                        <div
+                            key={step.id}
+                            id={`${idBase}-panel-${step.id}`}
+                            role="tabpanel"
+                            aria-labelledby={`${idBase}-tab-${step.id}`}
+                            aria-hidden={!isActive}
+                            tabIndex={isActive ? 0 : -1}
+                            className={`absolute inset-0 transition-[opacity,transform,filter] duration-1000 ease-out ${isActive ? "scale-100 blur-none opacity-100 z-10" : "scale-[1.03] blur-[4px] opacity-0 z-0 pointer-events-none"}`}
+                        >
                             <div
-                                key={step.id}
-                                id={`${idBase}-panel-${step.id}`}
-                                role="tabpanel"
-                                aria-labelledby={`${idBase}-tab-${step.id}`}
-                                aria-hidden={!isActive}
-                                tabIndex={isActive ? 0 : -1}
-                                className={`absolute inset-0 transition-[opacity,transform] duration-700 ease-out ${isActive ? "opacity-100" : "pointer-events-none opacity-0"}`}
-                            >
-                                <div
-                                    className="absolute inset-0"
-                                    style={{ background: step.stageGlow }}
-                                />
-                                <div
-                                    className="absolute left-[7%] top-[18%] h-[54%] w-[44%] rounded-[999px] blur-[88px]"
-                                    style={step.beamStyle}
-                                />
-                                <Image
-                                    src="/assets/placeholders/how-it-works-admin-console.png"
-                                    alt=""
-                                    fill
-                                    sizes="(min-width: 1024px) 1024px, 92vw"
-                                    className="object-cover object-top"
-                                    priority={index === 0}
-                                />
-                            </div>
-                        );
-                    })}
-
-                    <div className="pointer-events-none absolute inset-x-0 bottom-0 h-[44%] bg-[linear-gradient(180deg,rgba(4,5,8,0)_0%,rgba(5,6,10,0.16)_28%,rgba(5,6,10,0.74)_70%,rgba(5,6,10,0.95)_100%)]" />
-                    <div className="pointer-events-none absolute inset-x-[4%] bottom-[17%] h-px bg-[linear-gradient(90deg,rgba(255,255,255,0)_0%,rgba(255,255,255,0.1)_22%,rgba(255,255,255,0.04)_72%,rgba(255,255,255,0)_100%)]" />
-
-                    <div className="absolute inset-x-0 bottom-0 px-8 pb-8 pt-20 md:px-10 md:pb-9">
-                        <div className="relative min-h-[7.1rem] max-w-[29rem]">
-                            {STEPS.map((step, index) => {
-                                const isActive = index === activeIndex;
-
-                                return (
-                                    <div
-                                        key={step.id}
-                                        className={`absolute inset-0 transition-[opacity,transform] duration-500 ease-out ${isActive ? "translate-y-0 opacity-100" : "pointer-events-none translate-y-4 opacity-0"}`}
-                                        aria-hidden={!isActive}
-                                    >
-                                        <div className="h-px w-14 bg-[linear-gradient(90deg,#7c3aed_0%,rgba(167,139,250,0.24)_100%)]" />
-                                        <h3 className="mt-4 text-[1.82rem] font-semibold leading-[1.02] tracking-[-0.045em] text-white md:text-[2.04rem]">
-                                            {step.title}
-                                        </h3>
-                                        <div className="mt-4 space-y-1.5">
-                                            <p className="text-[1rem] font-medium leading-[1.45] text-white/82 md:text-[1.02rem]">
-                                                {step.captionLines[0]}
-                                            </p>
-                                            <p className="text-[1rem] leading-[1.45] text-white/56 md:text-[1.02rem]">
-                                                {step.captionLines[1]}
-                                            </p>
-                                        </div>
-                                    </div>
-                                );
-                            })}
+                                className="absolute inset-0 mix-blend-screen"
+                                style={{ background: step.stageGlow }}
+                            />
+                            <div
+                                className="absolute left-[10%] top-[20%] h-[60%] w-[50%] rounded-[999px] blur-[100px] mix-blend-screen"
+                                style={{ ...step.beamStyle, transition: "none" }}
+                            />
+                            
+                            <Image
+                                src="/assets/placeholders/how-it-works-admin-console.png"
+                                alt={step.title}
+                                fill
+                                sizes="(min-width: 1024px) 1024px, 92vw"
+                                className="object-cover object-top opacity-90"
+                                priority={index === 0}
+                            />
                         </div>
-                    </div>
-                </div>
+                    );
+                })}
             </div>
+            
+            {/* Optimized ambient ground glow for the 70% column */}
+            <div className="pointer-events-none absolute -bottom-16 inset-x-[15%] h-32 rounded-[100%] bg-[rgba(167,139,250,0.12)] blur-[64px]" />
         </div>
     );
 }
 
-function StepTimeline({
+function SingleLineTimeline({
     activeIndex,
     idBase,
     tabRefs,
     onSelectStep,
     onTabKeyDown,
+    progressKey
 }: Readonly<{
     activeIndex: number;
     idBase: string;
     tabRefs: MutableRefObject<Array<HTMLButtonElement | null>>;
     onSelectStep: (index: number) => void;
     onTabKeyDown: (event: KeyboardEvent<HTMLButtonElement>, index: number) => void;
+    progressKey: number;
 }>) {
-    const progress =
-        STEPS.length > 1 ? activeIndex / (STEPS.length - 1) : 0;
-
     return (
-        <div className="mx-auto mt-8 w-full max-w-[560px]">
+        <div className="w-full flex-col items-center space-y-4">
             <div
                 role="tablist"
-                aria-label="How SecureLearning works"
-                className="relative grid grid-cols-4 items-start"
+                aria-orientation="vertical"
+                aria-label="How SecureLearning works timeline"
+                className="flex flex-col w-full items-center"
             >
-                <div
-                    aria-hidden
-                    className="pointer-events-none absolute left-[12.5%] right-[12.5%] top-5 h-px bg-[rgba(167,139,250,0.12)]"
-                />
-                <div
-                    aria-hidden
-                    className="pointer-events-none absolute left-[12.5%] top-5 h-px bg-gradient-to-r from-[#7c3aed] via-[#a78bfa] to-[#7c3aed] transition-[width,opacity] duration-500 ease-out"
-                    style={{
-                        width: `${progress * 75}%`,
-                    }}
-                />
-                <div
-                    aria-hidden
-                    className="pointer-events-none absolute left-[12.5%] top-[1.125rem] h-[0.35rem] -translate-y-1/2 rounded-full bg-gradient-to-r from-[#7c3aed] via-[#a78bfa] to-[#7c3aed] blur-[8px] transition-[width,opacity] duration-500 ease-out"
-                    style={{
-                        width: `${progress * 75}%`,
-                        opacity: progress > 0 ? 0.55 : 0,
-                    }}
-                />
-
                 {STEPS.map((step, index) => {
                     const isActive = index === activeIndex;
-                    const isReached = index <= activeIndex;
+                    const isPast = index < activeIndex;
 
                     return (
-                        <button
-                            key={step.id}
-                            ref={(button) => {
-                                tabRefs.current[index] = button;
-                            }}
-                            id={`${idBase}-tab-${step.id}`}
-                            type="button"
-                            role="tab"
-                            aria-selected={isActive}
-                            aria-controls={`${idBase}-panel-${step.id}`}
-                            aria-label={step.title}
-                            tabIndex={isActive ? 0 : -1}
-                            onClick={() => onSelectStep(index)}
-                            onKeyDown={(event) => onTabKeyDown(event, index)}
-                            className="group relative flex h-10 items-start justify-center rounded-full focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[rgba(167,139,250,0.45)]"
-                        >
-                            <span
-                                aria-hidden
-                                className={`absolute top-[0.08rem] h-10 w-10 rounded-full bg-[rgba(167,139,250,0.45)] blur-[14px] transition-[opacity,transform] duration-300 ${isReached ? "opacity-100" : "opacity-0"} ${isActive ? "scale-110" : "scale-100"}`}
-                            />
-                            <span
-                                className={`relative z-10 inline-flex h-10 w-10 items-center justify-center rounded-full border text-[0.78rem] font-semibold tracking-[0.12em] transition-[background-color,border-color,box-shadow,color,transform] duration-300 ${isReached
-                                    ? "border-[#a78bfa] bg-[rgba(12,10,15,0.92)] text-white shadow-[0_0_12px_rgba(167,139,250,0.3)]"
-                                    : "border-[rgba(167,139,250,0.18)] bg-[rgba(12,10,15,0.92)] text-white/38 group-hover:border-[rgba(167,139,250,0.3)] group-hover:text-white/55"
-                                    } ${isActive ? "scale-105 shadow-[0_0_0_4px_rgba(124,58,237,0.14),0_0_18px_rgba(167,139,250,0.45)]" : ""}`}
+                        <Fragment key={step.id}>
+                            <button
+                                ref={(button) => {
+                                    tabRefs.current[index] = button;
+                                }}
+                                id={`${idBase}-tab-${step.id}`}
+                                type="button"
+                                role="tab"
+                                aria-selected={isActive}
+                                aria-controls={`${idBase}-panel-${step.id}`}
+                                aria-label={step.title}
+                                tabIndex={isActive ? 0 : -1}
+                                onClick={() => onSelectStep(index)}
+                                onKeyDown={(event) => onTabKeyDown(event, index)}
+                                className={`
+                                    group relative flex items-center justify-center transition-[width,height,background-color,border-radius,box-shadow,margin] duration-[800ms] ease-[cubic-bezier(0.16,1,0.3,1)]
+                                    overflow-hidden focus-visible:outline-none z-10 mx-auto
+                                    ${isActive 
+                                        ? 'w-full min-h-[175px] md:min-h-[185px] h-auto rounded-[48px] bg-[#0d071b] shadow-[0_48px_80px_rgba(0,0,0,0.6),0_0_0_1.5px_rgba(255,255,255,0.04),inset_0_0_32px_rgba(167,139,250,0.12)] px-4 mb-4 pb-8' 
+                                        : isPast
+                                            ? 'w-[44px] h-[44px] md:w-[50px] md:h-[50px] rounded-[999px] bg-[#05060b] shadow-[0_0_24px_rgba(167,139,250,0.25)] mb-4'
+                                            : 'w-[44px] h-[44px] md:w-[50px] md:h-[50px] rounded-[999px] bg-[#05060b] hover:bg-white/[0.05] mb-4'
+                                    }
+                                `}
                             >
-                                {step.number}
-                            </span>
-                            <span className="sr-only">
-                                {step.number} {step.title}
-                            </span>
-                        </button>
+                                {/* Base Border Layer (Layout-neutral inset shadows) */}
+                                <div className={`absolute inset-0 rounded-[inherit] transition-shadow pointer-events-none z-0
+                                    ${isActive 
+                                      ? 'duration-0' 
+                                      : isPast 
+                                        ? 'duration-[800ms] shadow-[inset_0_0_0_1.5px_#a78bfa]' 
+                                        : 'duration-[800ms] shadow-[inset_0_0_0_1.5px_rgba(255,255,255,0.15)]'}
+                                `} />
+
+                                {/* Progress Fill Indicator (Border Fill) */}
+                                {isActive && (
+                                    <div 
+                                        key={`progress-${progressKey}`}
+                                        className="absolute inset-0 rounded-[inherit] shadow-[inset_0_0_0_2px_#a78bfa] pointer-events-none z-20" 
+                                        style={{ animation: `fill-border-v ${AUTOPLAY_INTERVAL_MS}ms linear forwards` }} 
+                                    />
+                                )}
+
+                                {/* Conformal Narrative Layout (Ultra-Compact) */}
+                                <div className={`
+                                    flex flex-col items-center justify-start transition-all duration-[800ms] ease-[cubic-bezier(0.16,1,0.3,1)] z-10 w-full px-2
+                                    ${isActive ? 'opacity-100 pt-5' : 'opacity-100 pt-0'}
+                                `}>
+                                    {/* Number Circle (High-precision minimalist orientation label) */}
+                                    <div className={`
+                                        shrink-0 flex items-center justify-center transition-all duration-[800ms] ease-[cubic-bezier(0.16,1,0.3,1)]
+                                        ${isActive 
+                                            ? 'w-[32px] h-[32px] rounded-[999px] border-[1px] border-white/10 bg-white/[0.03] mb-1' 
+                                            : 'w-[44px] h-[44px] md:w-[50px] md:h-[50px]'
+                                        }
+                                    `}>
+                                        <span className={`transition-all duration-[800ms] font-bold tracking-widest ${
+                                            isActive ? 'text-white/30 text-[0.7rem]' : 'text-white/40 text-[0.95rem] md:text-[1.1rem]'
+                                        } ${isPast && !isActive ? 'text-white/90' : ''}`}>
+                                            {step.number}
+                                        </span>
+                                    </div>
+
+                                    {/* Typography Stack */}
+                                    <div className={`
+                                        flex flex-col items-center text-center transition-all duration-[800ms] ease-[cubic-bezier(0.16,1,0.3,1)] 
+                                        overflow-hidden
+                                        ${isActive ? 'opacity-100 max-h-[400px] visible' : 'opacity-0 max-h-0 invisible'}
+                                    `}>
+                                        <h3 className="text-[1.5rem] md:text-[1.85rem] font-bold text-white tracking-tight leading-tight max-w-[350px]">{step.title}</h3>
+                                        <div className="flex flex-col space-y-1 mt-3">
+                                            <p className="text-[0.9rem] md:text-[0.95rem] text-white/50 leading-relaxed font-medium max-w-[350px]">{step.captionLines[0]} {step.captionLines[1]}</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </button>
+
+                            {/* Center-aligned Seamless Vertical Connecting Line */}
+                            {index !== STEPS.length - 1 && (
+                                <div className="relative h-[48px] flex items-center justify-center -mt-4 mb-0">
+                                    <div className={`
+                                        w-[2px] h-full transition-all duration-[1000ms] ease-in-out relative z-0
+                                        ${isPast ? 'bg-[#a78bfa] shadow-[0_0_12px_#a78bfa]' : 'bg-white/10'}
+                                    `} />
+                                </div>
+                            )}
+                        </Fragment>
                     );
                 })}
             </div>
+            <style jsx>{`
+                @keyframes fill-border-v {
+                    0% { clip-path: inset(0 0 100% 0); }
+                    100% { clip-path: inset(0 0 0 0); }
+                }
+            `}</style>
         </div>
     );
 }
 
 export default function HowItWorks() {
     const sectionRef = useRef<HTMLElement | null>(null);
+    const consoleRef = useRef<HTMLDivElement | null>(null);
     const tabRefs = useRef<Array<HTMLButtonElement | null>>([]);
+    const itemRefs = useRef<Array<HTMLDivElement | null>>([]);
     const idBase = useId().replace(/:/g, "");
+    
     const [activeIndex, setActiveIndex] = useState(0);
-    const [hasEntered, setHasEntered] = useState(false);
-    const [hasAutoPlayed, setHasAutoPlayed] = useState(false);
+    const [progressKey, setProgressKey] = useState(0); 
     const [userHasInteracted, setUserHasInteracted] = useState(false);
-    const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
 
+    // Track active index based on scroll with IntersectionObserver
     useEffect(() => {
-        if (typeof window === "undefined" || typeof window.matchMedia !== "function") {
-            return;
-        }
+        if (typeof IntersectionObserver === "undefined") return;
 
-        const mediaQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
-        const updatePreference = () => setPrefersReducedMotion(mediaQuery.matches);
+        const options = {
+            root: null,
+            threshold: 0.6,
+        };
 
-        updatePreference();
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach((entry) => {
+                if (entry.isIntersecting) {
+                    const index = parseInt(entry.target.getAttribute("data-index") || "0");
+                    setActiveIndex(index);
+                    setProgressKey((prev) => prev + 1);
+                }
+            });
+        }, options);
 
-        if (typeof mediaQuery.addEventListener === "function") {
-            mediaQuery.addEventListener("change", updatePreference);
-            return () => mediaQuery.removeEventListener("change", updatePreference);
-        }
+        itemRefs.current.forEach((el) => {
+            if (el) observer.observe(el);
+        });
 
-        mediaQuery.addListener(updatePreference);
-        return () => mediaQuery.removeListener(updatePreference);
-    }, []);
-
-    useEffect(() => {
-        const section = sectionRef.current;
-        if (!section) return;
-
-        if (typeof IntersectionObserver === "undefined") {
-            setHasEntered(true);
-            return;
-        }
-
-        const observer = new IntersectionObserver(
-            ([entry]) => {
-                if (!entry.isIntersecting) return;
-                setHasEntered(true);
-                observer.disconnect();
-            },
-            {
-                threshold: 0.3,
-                rootMargin: "0px 0px -12% 0px",
-            }
-        );
-
-        observer.observe(section);
         return () => observer.disconnect();
     }, []);
 
+    // Also keep the auto-play timer, but it resets on scroll index change
     useEffect(() => {
-        if (prefersReducedMotion || userHasInteracted || hasAutoPlayed || !hasEntered) {
-            return;
-        }
+        if (userHasInteracted) return;
 
-        const timeoutIds: number[] = [];
+        const intervalId = window.setInterval(() => {
+            setActiveIndex((prev) => (prev + 1) % STEPS.length);
+            setProgressKey((prev) => prev + 1);
+        }, AUTOPLAY_INTERVAL_MS);
 
-        for (let index = 1; index < STEPS.length; index += 1) {
-            timeoutIds.push(
-                window.setTimeout(() => {
-                    setActiveIndex(index);
-
-                    if (index === STEPS.length - 1) {
-                        setHasAutoPlayed(true);
-                    }
-                }, AUTOPLAY_INTERVAL_MS * index)
-            );
-        }
-
-        timeoutIds.push(
-            window.setTimeout(() => {
-                setHasAutoPlayed(true);
-            }, AUTOPLAY_INTERVAL_MS * (STEPS.length - 1) + 120)
-        );
-
-        return () => timeoutIds.forEach((timeoutId) => window.clearTimeout(timeoutId));
-    }, [hasAutoPlayed, hasEntered, prefersReducedMotion, userHasInteracted]);
+        return () => window.clearInterval(intervalId);
+    }, [activeIndex, userHasInteracted]);
 
     const handleStepSelection = (index: number) => {
         setUserHasInteracted(true);
-        setHasAutoPlayed(true);
         setActiveIndex(index);
+        setProgressKey((prev) => prev + 1);
+        
+        // Scroll to the respective anchor
+        itemRefs.current[index]?.scrollIntoView({ behavior: "smooth", block: "center" });
     };
 
     const moveFocusToStep = (index: number) => {
@@ -388,33 +361,57 @@ export default function HowItWorks() {
         <section
             id="how-it-works"
             ref={sectionRef}
-            className="full-bleed relative pt-14 pb-24 md:pt-18 md:pb-28"
+            className="relative h-[400vh] full-bleed"
         >
-            <div className="relative z-10 mx-auto max-w-[1240px] px-6">
-                <Reveal>
-                    <div className="mx-auto max-w-[1048px]">
-                        <div className="w-14 h-px bg-[linear-gradient(90deg,#7c3aed_0%,rgba(167,139,250,0.14)_100%)]" />
-                        <h2 className="mt-5 text-[2.6rem] font-semibold tracking-[-0.065em] text-white sm:text-[3rem] md:text-[3.35rem]">
-                            How It Works
-                        </h2>
-                    </div>
-                </Reveal>
+            {/* Scroll Anchors (invisible sensors) */}
+            <div className="absolute inset-0 z-0 pointer-events-none">
+                {STEPS.map((_, i) => (
+                    <div 
+                        key={i} 
+                        ref={(el) => { itemRefs.current[i] = el; }}
+                        data-index={i}
+                        className="h-screen w-full" 
+                    />
+                ))}
+            </div>
 
-                <Reveal delay={0.06}>
-                    <div className="mt-9 md:mt-10">
-                        <StagePanels
-                            activeIndex={activeIndex}
-                            idBase={idBase}
-                        />
-                        <StepTimeline
-                            activeIndex={activeIndex}
-                            idBase={idBase}
-                            tabRefs={tabRefs}
-                            onSelectStep={handleStepSelection}
-                            onTabKeyDown={handleTabKeyDown}
-                        />
+            {/* Sticky Container */}
+            <div className="sticky top-0 h-screen w-full flex items-center overflow-hidden">
+                <div className="relative z-10 mx-auto max-w-[1440px] w-full px-6 md:px-12">
+                    
+                    {/* Header */}
+                    <Reveal>
+                        <div className="mb-12 lg:mb-16">
+                            <h2 className="text-[2.6rem] font-semibold tracking-[-0.05em] text-white sm:text-[3rem] md:text-[3.25rem]">
+                                How It Works
+                            </h2>
+                        </div>
+                    </Reveal>
+
+                    <div className="grid grid-cols-1 lg:grid-cols-[380px_1fr] gap-x-16 items-center">
+                        
+                        {/* Left: Vertical Timeline */}
+                        <div className="hidden lg:block">
+                            <SingleLineTimeline
+                                activeIndex={activeIndex}
+                                idBase={idBase}
+                                tabRefs={tabRefs}
+                                onSelectStep={handleStepSelection}
+                                onTabKeyDown={handleTabKeyDown}
+                                progressKey={progressKey}
+                            />
+                        </div>
+
+                        {/* Right: Media Stage */}
+                        <div className="w-full">
+                            <StagePanels
+                                activeIndex={activeIndex}
+                                idBase={idBase}
+                            />
+                        </div>
+                        
                     </div>
-                </Reveal>
+                </div>
             </div>
         </section>
     );

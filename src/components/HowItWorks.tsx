@@ -16,7 +16,6 @@ import {
 } from "react";
 import { gsap } from "gsap";
 import { Flip } from "gsap/dist/Flip";
-import Reveal from "./Reveal";
 
 gsap.registerPlugin(Flip);
 
@@ -482,6 +481,9 @@ export default function HowItWorks() {
     const sectionRef = useRef<HTMLElement | null>(null);
     const tabRefs = useRef<Array<HTMLButtonElement | null>>([]);
     const itemRefs = useRef<Array<HTMLDivElement | null>>([]);
+    const sentenceRef = useRef<HTMLParagraphElement | null>(null);
+    const contentGridRef = useRef<HTMLDivElement | null>(null);
+    const introWrapperRef = useRef<HTMLDivElement | null>(null);
     const idBase = useId().replace(/:/g, "");
     const flipStateBeforeRef = useRef<Flip.FlipState | null>(null);
     const flipCtxRef = useRef<ReturnType<typeof gsap.context> | null>(null);
@@ -521,13 +523,71 @@ export default function HowItWorks() {
 
     activeIndexRef.current = activeIndex;
 
-    /** 0 when section top = viewport top (sticky engages); +1 per vh of travel. Unclamped. */
+    /**
+     * Step float with intro offset.
+     * returns -1 when the section top hits viewport top (intro phase begins).
+     * returns  0 when the intro viewport has been fully scrolled (step 0 starts).
+     * +1 per additional vh of travel.
+     */
     const computeStepFloat = useCallback(() => {
         const section = sectionRef.current;
-        if (!section) return 0;
+        if (!section) return -1;
         const vh = window.innerHeight || 1;
-        return -section.getBoundingClientRect().top / vh;
+        return -section.getBoundingClientRect().top / vh - 1;
     }, []);
+
+    /**
+     * Drives the intro → content wipe in 3 phases:
+     *   Settle (0→0.1):  sentence rises from +8vh to centre.
+     *   Dock   (0.1→0.4): sentence holds at centre — reading time.
+     *   Wipe   (0.4→1.0): whole stack slides up, sentence exits top,
+     *                      content rises into centre from below.
+     */
+    const updateIntroVisuals = useCallback(() => {
+        const sf = computeStepFloat();
+        const introF = Math.max(0, Math.min(1, sf + 1));
+
+        // --- Wrapper translation (3-phase) ---
+        const wrapper = introWrapperRef.current;
+        if (wrapper) {
+            let travel: number;
+            if (introF < 0.1) {
+                // Settle: +8vh → 0
+                travel = 8 * (1 - introF / 0.1);
+            } else if (introF < 0.4) {
+                // Docked at centre
+                travel = 0;
+            } else {
+                // Wipe: 0 → -70vh
+                const wipeF = (introF - 0.4) / 0.6;
+                travel = -70 * wipeF;
+            }
+            wrapper.style.transform = `translateY(${travel}vh)`;
+        }
+
+        // --- Sentence opacity + blur (pre-shifted so it appears a touch earlier) ---
+        const sentence = sentenceRef.current;
+        if (sentence) {
+            const sp = sf + 1.1; // starts ~10vh before the main intro phase
+            let op: number;
+            if (sp < 0) op = 0;
+            else if (sp < 0.35) op = sp / 0.35;                // gradual fade in
+            else if (sp < 0.5) op = 1;                          // hold during dock
+            else if (sp < 0.8) op = 1 - (sp - 0.5) / 0.3;      // fade out during wipe
+            else op = 0;
+            const blur = sp > 0.55 ? ((sp - 0.55) / 0.45) * 8 : 0;
+
+            sentence.style.opacity = String(Math.max(0, Math.min(1, op)));
+            sentence.style.filter = blur > 0.1 ? `blur(${blur}px)` : "none";
+        }
+
+        // --- Content grid opacity ---
+        const grid = contentGridRef.current;
+        if (grid) {
+            const contentF = Math.max(0, Math.min(1, (introF - 0.45) / 0.4)); // 0.45→0.85
+            grid.style.opacity = String(contentF);
+        }
+    }, [computeStepFloat]);
 
     const applyStepIndex = useCallback((nextIndex: number) => {
         if (nextIndex === activeIndexRef.current) return;
@@ -773,6 +833,10 @@ export default function HowItWorks() {
         const tick = () => {
             rafId = window.requestAnimationFrame(tick);
             if (!isVisibleRef.current) return;
+
+            // Always update intro crossfade (even while scrolling/snapping)
+            updateIntroVisuals();
+
             if (isScrollingRef.current || isSnappingRef.current) return;
 
             const now = performance.now();
@@ -790,7 +854,7 @@ export default function HowItWorks() {
 
         rafId = window.requestAnimationFrame(tick);
         return () => cancelAnimationFrame(rafId);
-    }, [activeIndex, userHasInteracted, applyNextStepAutoplay]);
+    }, [activeIndex, userHasInteracted, applyNextStepAutoplay, updateIntroVisuals]);
 
     const handleStepSelection = (index: number) => {
         setUserHasInteracted(true);
@@ -836,60 +900,101 @@ export default function HowItWorks() {
         <section
             id="how-it-works"
             ref={sectionRef}
-            className="relative h-[400vh] full-bleed"
+            aria-label="How SecureLearning works"
+            className="relative h-[500vh] full-bleed"
         >
-            {/* Scroll Anchors (invisible sensors) */}
+            {/* Visually hidden heading for a11y / SEO */}
+            <h2 className="sr-only">How SecureLearning works</h2>
+
+            {/* Scroll Anchors — 1 intro + 4 steps */}
             <div className="absolute inset-0 z-0 pointer-events-none">
+                <div className="h-screen w-full" />{/* intro viewport */}
                 {STEPS.map((_, i) => (
-                    <div 
-                        key={i} 
+                    <div
+                        key={i}
                         ref={(el) => { itemRefs.current[i] = el; }}
                         data-index={i}
-                        className="h-screen w-full" 
+                        className="h-screen w-full"
                     />
                 ))}
             </div>
 
-            {/* Sticky Container */}
-            <div className="sticky top-0 h-screen w-full flex items-center overflow-hidden">
-                <div className="relative z-10 mx-auto max-w-[1440px] w-full px-6 md:px-12">
-                    
-                    {/* Header */}
-                    <Reveal>
-                        <div className="mb-12 lg:mb-16">
-                            <h2 className="text-[2.6rem] font-semibold tracking-[-0.05em] text-white sm:text-[3rem] md:text-[3.25rem]">
-                                How It Works
-                            </h2>
-                        </div>
-                    </Reveal>
+            {/* Sticky Container — overflow-hidden viewport frame */}
+            <div className="sticky top-0 h-screen w-full overflow-hidden">
+                {/* Wipe wrapper — 2×vh stack that slides upward */}
+                <div ref={introWrapperRef} style={{ willChange: "transform" }}>
 
-                    <div className="grid grid-cols-1 lg:grid-cols-[380px_1fr] gap-x-16 items-center">
-                        
-                        {/* Left: Vertical Timeline */}
-                        <div className="hidden lg:block">
-                            <SingleLineTimeline
-                                activeIndex={activeIndex}
-                                cardOutlineProgress01={cardOutlineProgress01}
-                                connectorFillPercents={connectorFillPercents}
-                                idBase={idBase}
-                                tabRefs={tabRefs}
-                                onSelectStep={handleStepSelection}
-                                onTabKeyDown={handleTabKeyDown}
-                                progressKey={progressKey}
-                            />
-                        </div>
+                    {/* Panel 1: Sentence — starts centred on screen */}
+                    <div className="h-screen flex items-center justify-center pointer-events-none">
+                        <p
+                            ref={sentenceRef}
+                            aria-hidden
+                            className="hiw-sentence hiw-underline text-[2.2rem] md:text-[2.8rem] lg:text-[3.4rem] font-light italic tracking-[-0.02em] select-none"
+                            style={{ opacity: 0, willChange: "opacity, filter" }}
+                        >
+                            Sounds complicated?
+                        </p>
+                    </div>
 
-                        {/* Right: Media Stage */}
-                        <div className="w-full">
-                            <StagePanels
-                                activeIndex={activeIndex}
-                                idBase={idBase}
-                            />
+                    {/* Panel 2: Content — pulled up closer to sentence */}
+                    <div className="h-screen flex items-center -mt-[30vh]">
+                        <div className="relative mx-auto max-w-[1440px] w-full px-6 md:px-12">
+                            <div
+                                ref={contentGridRef}
+                                className="grid grid-cols-1 lg:grid-cols-[380px_1fr] gap-x-16 items-center"
+                                style={{ opacity: 0, willChange: "opacity" }}
+                            >
+
+                                {/* Left: Vertical Timeline */}
+                                <div className="hidden lg:block">
+                                    <SingleLineTimeline
+                                        activeIndex={activeIndex}
+                                        cardOutlineProgress01={cardOutlineProgress01}
+                                        connectorFillPercents={connectorFillPercents}
+                                        idBase={idBase}
+                                        tabRefs={tabRefs}
+                                        onSelectStep={handleStepSelection}
+                                        onTabKeyDown={handleTabKeyDown}
+                                        progressKey={progressKey}
+                                    />
+                                </div>
+
+                                {/* Right: Glass Display */}
+                                <div className="w-full">
+                                    <StagePanels
+                                        activeIndex={activeIndex}
+                                        idBase={idBase}
+                                    />
+                                </div>
+
+                            </div>
                         </div>
-                        
                     </div>
                 </div>
             </div>
+
+            <style jsx>{`
+                .hiw-sentence {
+                    color: rgba(255, 255, 255, 0.92);
+                    text-shadow:
+                        0 0 50px rgba(167, 139, 250, 0.12),
+                        0 0 100px rgba(124, 58, 237, 0.06);
+                }
+                .hiw-underline {
+                    background-image: linear-gradient(
+                        90deg,
+                        transparent 0%,
+                        rgba(124, 58, 237, 0.5) 8%,
+                        rgba(139, 92, 246, 0.55) 50%,
+                        rgba(124, 58, 237, 0.5) 92%,
+                        transparent 100%
+                    );
+                    background-repeat: no-repeat;
+                    background-position: 0 calc(100% + 1px);
+                    background-size: 100% 2.5px;
+                    padding-bottom: 4px;
+                }
+            `}</style>
         </section>
     );
 }

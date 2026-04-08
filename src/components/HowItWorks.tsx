@@ -520,6 +520,10 @@ export default function HowItWorks() {
     const stepClockStartRef = useRef(0);
     const savedElapsedOnScrollStartRef = useRef(0);
     const reduceMotionRef = useRef(false);
+    /** Smoothed step-float for the intro visuals — lerped toward the real value each frame. */
+    const smoothSfRef = useRef<number | null>(null);  // null = not yet initialised
+    /** True once the content grid has fully faded in after the intro. */
+    const contentReadyRef = useRef(false);
 
     activeIndexRef.current = activeIndex;
 
@@ -543,23 +547,25 @@ export default function HowItWorks() {
      *   Wipe   (0.4→1.0): whole stack slides up, sentence exits top,
      *                      content rises into centre from below.
      */
-    const updateIntroVisuals = useCallback(() => {
-        const sf = computeStepFloat();
+    const updateIntroVisuals = useCallback((sf: number) => {
         const introF = Math.max(0, Math.min(1, sf + 1));
 
-        // --- Wrapper translation (3-phase) ---
+        // --- Wrapper translation ---
+        // Pre-shifted MORE than the opacity (1.35 vs 1.25) so the wrapper
+        // begins moving while the sentence is still invisible — the hard start
+        // from the clamping corner is hidden in the dark.
         const wrapper = introWrapperRef.current;
         if (wrapper) {
+            const wf = sf + 1.35;
             let travel: number;
-            if (introF < 0.1) {
-                // Settle: +8vh → 0
-                travel = 8 * (1 - introF / 0.1);
-            } else if (introF < 0.4) {
-                // Docked at centre
-                travel = 0;
+            if (wf < 0) {
+                travel = 10;                                     // before everything
+            } else if (wf < 0.35) {
+                travel = 10 * (1 - wf / 0.35);                  // settle
+            } else if (wf < 0.75) {
+                travel = 0;                                      // dock
             } else {
-                // Wipe: 0 → -70vh
-                const wipeF = (introF - 0.4) / 0.6;
+                const wipeF = Math.min(1, (wf - 0.75) / 0.6);   // wipe
                 travel = -70 * wipeF;
             }
             wrapper.style.transform = `translateY(${travel}vh)`;
@@ -568,7 +574,7 @@ export default function HowItWorks() {
         // --- Sentence opacity + blur (pre-shifted so it appears a touch earlier) ---
         const sentence = sentenceRef.current;
         if (sentence) {
-            const sp = sf + 1.1; // starts ~10vh before the main intro phase
+            const sp = sf + 1.25; // starts ~25vh before the main intro phase
             let op: number;
             if (sp < 0) op = 0;
             else if (sp < 0.35) op = sp / 0.35;                // gradual fade in
@@ -586,8 +592,14 @@ export default function HowItWorks() {
         if (grid) {
             const contentF = Math.max(0, Math.min(1, (introF - 0.45) / 0.4)); // 0.45→0.85
             grid.style.opacity = String(contentF);
+
+            // Gate autoplay: content is "ready" once fully opaque
+            if (contentF >= 0.98 && !contentReadyRef.current) {
+                contentReadyRef.current = true;
+                stepClockStartRef.current = performance.now(); // fresh timer
+            }
         }
-    }, [computeStepFloat]);
+    }, []);
 
     const applyStepIndex = useCallback((nextIndex: number) => {
         if (nextIndex === activeIndexRef.current) return;
@@ -830,14 +842,26 @@ export default function HowItWorks() {
         if (typeof window === "undefined") return;
         let rafId = 0;
 
+        const LERP_FACTOR = 0.085; // lower = smoother/floatier
+
         const tick = () => {
             rafId = window.requestAnimationFrame(tick);
             if (!isVisibleRef.current) return;
 
-            // Always update intro crossfade (even while scrolling/snapping)
-            updateIntroVisuals();
+            // Smooth the step float for intro visuals
+            const rawSf = computeStepFloat();
+            if (smoothSfRef.current === null) {
+                // First visible frame: snap to current position (no lerp lag on load)
+                smoothSfRef.current = rawSf;
+            } else {
+                smoothSfRef.current += (rawSf - smoothSfRef.current) * LERP_FACTOR;
+            }
+            updateIntroVisuals(smoothSfRef.current);
 
             if (isScrollingRef.current || isSnappingRef.current) return;
+
+            // Don't autoplay until the intro wipe is complete and content is visible
+            if (!contentReadyRef.current) return;
 
             const now = performance.now();
             const elapsed = now - stepClockStartRef.current;

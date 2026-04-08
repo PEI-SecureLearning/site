@@ -2,8 +2,10 @@
 
 import Image from "next/image";
 import {
+    useCallback,
     useEffect,
     useId,
+    useLayoutEffect,
     useMemo,
     useRef,
     useState,
@@ -12,7 +14,11 @@ import {
     type MutableRefObject,
     Fragment,
 } from "react";
+import { gsap } from "gsap";
+import { Flip } from "gsap/dist/Flip";
 import Reveal from "./Reveal";
+
+gsap.registerPlugin(Flip);
 
 type HowItWorksStep = {
     id: string;
@@ -86,7 +92,31 @@ const STEPS: readonly HowItWorksStep[] = [
 ] as const;
 
 const AUTOPLAY_INTERVAL_MS = 6000;
-
+const CARD_FILL_DURATION_MS = 4600;
+/** Share of each step segment spent tracing the active card outline (rest = vertical connector). */
+const CARD_SEGMENT_FRACTION = CARD_FILL_DURATION_MS / AUTOPLAY_INTERVAL_MS;
+/**
+ * Symmetric commit band in `stepFloat` units: advance at `sf >= c + B`, retreat at `sf <= c - B`.
+ * Leaves a dead zone so crossing one threshold cannot immediately ping-pong the other way.
+ */
+const COMMIT_BAND = 0.55;
+/** Idle fallback when `scrollend` is missing (Safari / some Firefox). */
+const SCROLL_IDLE_MS = 72;
+/** Ignore scroll-based step commits while smooth `scrollIntoView` from tab/keyboard catches up. */
+const PROGRAMMATIC_SCROLL_GUARD_MS = 1200;
+const SNAP_DURATION_S = 0.22;
+const ACTIVE_CARD_RADIUS_PX = 48;
+/** Width/height tween (scale:false) avoids non-uniform scaleX/Y that turns circles into “number ovals”. */
+const FLIP_DURATION_S = 0.78;
+/** Constant rate — no ease-in/out slowdown at the end. */
+const FLIP_EASE = "none";
+/**
+ * Stage media for the committed step only (`activeIndex`). When you add `<video>` per step, keep
+ * `activeIndex` as the committed index; on `timeupdate`, report normalized progress (0–1) to the
+ * parent only while the user is not scroll-scrubbing, and merge it into the same **segment**
+ * progress (card outline + vertical connector) as autoplay — do not change `activeIndex` until
+ * scroll/keyboard/tab commits as today.
+ */
 function StagePanels({
     activeIndex,
     idBase,
@@ -96,9 +126,29 @@ function StagePanels({
 }>) {
     return (
         <div className="relative w-full max-w-[1240px]">
-            {/* The Frameless Media Stage */}
-            <div className="relative aspect-[16/10] overflow-hidden rounded-[20px] bg-[#05060b] shadow-[0_32px_96px_rgba(0,0,0,0.5),0_0_0_1px_rgba(255,255,255,0.08)]">
-                
+            {/* ── Glass Display ── */}
+            <div className="hiw-glass-display relative aspect-[1920/976] overflow-hidden rounded-[18px] bg-[#05060b]">
+
+                {/* Top-edge specular highlight — light catching a glass bezel */}
+                <div
+                    aria-hidden
+                    className="pointer-events-none absolute inset-x-0 top-0 z-30 h-[1px]"
+                    style={{
+                        background:
+                            "linear-gradient(90deg, transparent 8%, rgba(255,255,255,0.07) 25%, rgba(255,255,255,0.12) 50%, rgba(255,255,255,0.07) 75%, transparent 92%)",
+                    }}
+                />
+
+                {/* Inner edge vignette — recessed screen depth */}
+                <div
+                    aria-hidden
+                    className="pointer-events-none absolute inset-0 z-20 rounded-[inherit]"
+                    style={{
+                        boxShadow:
+                            "inset 0 2px 6px rgba(0,0,0,0.25), inset 0 -1px 3px rgba(0,0,0,0.15), inset 2px 0 4px rgba(0,0,0,0.08), inset -2px 0 4px rgba(0,0,0,0.08)",
+                    }}
+                />
+
                 {STEPS.map((step, index) => {
                     const isActive = index === activeIndex;
 
@@ -120,7 +170,7 @@ function StagePanels({
                                 className="absolute left-[10%] top-[20%] h-[60%] w-[50%] rounded-[999px] blur-[100px] mix-blend-screen"
                                 style={{ ...step.beamStyle, transition: "none" }}
                             />
-                            
+
                             <Image
                                 src="/assets/placeholders/how-it-works-admin-console.png"
                                 alt={step.title}
@@ -133,15 +183,53 @@ function StagePanels({
                     );
                 })}
             </div>
-            
-            {/* Optimized ambient ground glow for the 70% column */}
-            <div className="pointer-events-none absolute -bottom-16 inset-x-[15%] h-32 rounded-[100%] bg-[rgba(167,139,250,0.12)] blur-[64px]" />
+
+            {/* Ambient ground glow */}
+            <div className="pointer-events-none absolute -bottom-16 inset-x-[12%] h-36 rounded-[100%] bg-[rgba(167,139,250,0.10)] blur-[72px]" />
+
+            <style jsx>{`
+                .hiw-glass-display {
+                    box-shadow:
+                        /* Primary depth shadow */
+                        0 44px 100px rgba(0, 0, 0, 0.55),
+                        0 18px 44px rgba(0, 0, 0, 0.3),
+                        /* Outer bezel ring */
+                        0 0 0 1px rgba(255, 255, 255, 0.06),
+                        /* Bottom edge catch — faint light on the chin */
+                        0 1px 0 rgba(255, 255, 255, 0.03);
+                }
+            `}</style>
         </div>
     );
 }
 
+function canonicalSegmentCombinedFromElapsed(elapsedMs: number): number {
+    return Math.min(1, Math.max(0, elapsedMs / AUTOPLAY_INTERVAL_MS));
+}
+
+/** Vertical connector fill (0–100) for each spine segment from unified segment progress [0,1]. */
+function connectorFillsFromSegmentCombined(committedIndex: number, segmentCombined01: number): number[] {
+    const r = CARD_SEGMENT_FRACTION;
+    const c = segmentCombined01;
+    const activeConn =
+        c <= r ? 0 : ((c - r) / (1 - r)) * 100;
+    return Array.from({ length: STEPS.length - 1 }, (_, i) => {
+        if (committedIndex > i) return 100;
+        if (committedIndex < i) return 0;
+        return Math.min(100, Math.max(0, activeConn));
+    });
+}
+
+/** Card fork stroke progress (0–1) from the same unified segment progress as the spine. */
+function cardOutlineProgressFromCombined(segmentCombined01: number): number {
+    const r = CARD_SEGMENT_FRACTION;
+    return Math.min(1, Math.max(0, segmentCombined01 / r));
+}
+
 function SingleLineTimeline({
     activeIndex,
+    cardOutlineProgress01,
+    connectorFillPercents,
     idBase,
     tabRefs,
     onSelectStep,
@@ -149,6 +237,10 @@ function SingleLineTimeline({
     progressKey
 }: Readonly<{
     activeIndex: number;
+    /** 0–1: shared timeline progress through the active card border (same clock as spine). */
+    cardOutlineProgress01: number;
+    /** 0–100 height for each spine segment below step i (length STEPS.length - 1). */
+    connectorFillPercents: readonly number[];
     idBase: string;
     tabRefs: MutableRefObject<Array<HTMLButtonElement | null>>;
     onSelectStep: (index: number) => void;
@@ -183,75 +275,86 @@ function SingleLineTimeline({
                                 onClick={() => onSelectStep(index)}
                                 onKeyDown={(event) => onTabKeyDown(event, index)}
                                 className={`
-                                    group relative flex items-center justify-center transition-[width,height,background-color,border-radius,box-shadow,margin] duration-[800ms] ease-[cubic-bezier(0.16,1,0.3,1)]
-                                    overflow-hidden focus-visible:outline-none z-10 mx-auto
-                                    ${isActive 
-                                        ? 'w-full min-h-[175px] md:min-h-[185px] h-auto rounded-[48px] bg-[#0d071b] shadow-[0_48px_80px_rgba(0,0,0,0.6),0_0_0_1.5px_rgba(255,255,255,0.04),inset_0_0_32px_rgba(167,139,250,0.12)] px-4 mb-4 pb-8' 
-                                        : isPast
-                                            ? 'w-[44px] h-[44px] md:w-[50px] md:h-[50px] rounded-[999px] bg-[#05060b] shadow-[0_0_24px_rgba(167,139,250,0.25)] mb-4'
-                                            : 'w-[44px] h-[44px] md:w-[50px] md:h-[50px] rounded-[999px] bg-[#05060b] hover:bg-white/[0.05] mb-4'
+                                    group relative overflow-hidden focus-visible:outline-none z-10 mx-auto
+                                    ${isActive
+                                        ? `hiw-active-card flex w-full min-h-[175px] flex-col items-center justify-start rounded-[48px] bg-[#0d071b] px-4 pb-8 pt-5 mb-4 h-auto md:min-h-[185px]${index > 0 ? " -mt-[7px]" : ""}`
+                                        : 'flex h-[44px] w-[44px] items-center justify-center rounded-[999px] bg-[#05060b] md:h-[50px] md:w-[50px] mb-4'
                                     }
+                                    ${!isActive && isPast ? 'shadow-[0_0_24px_rgba(167,139,250,0.25)]' : ''}
+                                    ${!isActive && !isPast ? 'hover:bg-white/[0.05]' : ''}
                                 `}
                             >
-                                {/* Base Border Layer (Layout-neutral inset shadows) */}
-                                <div className={`absolute inset-0 rounded-[inherit] transition-shadow pointer-events-none z-0
-                                    ${isActive 
-                                      ? 'duration-0' 
-                                      : isPast 
-                                        ? 'duration-[800ms] shadow-[inset_0_0_0_1.5px_#a78bfa]' 
-                                        : 'duration-[800ms] shadow-[inset_0_0_0_1.5px_rgba(255,255,255,0.15)]'}
-                                `} />
+                                <div
+                                    className={`
+                                        absolute inset-0 rounded-[inherit] pointer-events-none z-0
+                                        ${isActive
+                                            ? ''
+                                            : isPast
+                                                ? 'shadow-[inset_0_0_0_1.5px_#a78bfa]'
+                                                : 'shadow-[inset_0_0_0_1.5px_rgba(255,255,255,0.15)]'}
+                                    `}
+                                />
 
-                                {/* Progress Fill Indicator (Border Fill) */}
                                 {isActive && (
-                                    <div 
-                                        key={`progress-${progressKey}`}
-                                        className="absolute inset-0 rounded-[inherit] shadow-[inset_0_0_0_2px_#a78bfa] pointer-events-none z-20" 
-                                        style={{ animation: `fill-border-v ${AUTOPLAY_INTERVAL_MS}ms linear forwards` }} 
+                                    <ActiveCardBorder progressKey={progressKey} outlineProgress01={cardOutlineProgress01} />
+                                )}
+
+                                {/* Continues the spine into the pill so the stroke doesn’t stop short of the border */}
+                                {isActive && index > 0 && (
+                                    <span
+                                        aria-hidden
+                                        className="pointer-events-none absolute left-1/2 top-0 z-[6] h-[14px] w-[2px] -translate-x-1/2 -translate-y-full bg-[#a78bfa] shadow-[0_0_12px_rgba(167,139,250,0.65)]"
                                     />
                                 )}
 
-                                {/* Conformal Narrative Layout (Ultra-Compact) */}
-                                <div className={`
-                                    flex flex-col items-center justify-start transition-all duration-[800ms] ease-[cubic-bezier(0.16,1,0.3,1)] z-10 w-full px-2
-                                    ${isActive ? 'opacity-100 pt-5' : 'opacity-100 pt-0'}
-                                `}>
-                                    {/* Number Circle (High-precision minimalist orientation label) */}
-                                    <div className={`
-                                        shrink-0 flex items-center justify-center transition-all duration-[800ms] ease-[cubic-bezier(0.16,1,0.3,1)]
-                                        ${isActive 
-                                            ? 'w-[32px] h-[32px] rounded-[999px] border-[1px] border-white/10 bg-white/[0.03] mb-1' 
-                                            : 'w-[44px] h-[44px] md:w-[50px] md:h-[50px]'
+                                <div className="relative z-10 flex w-full flex-col items-center justify-start px-2">
+                                    <div
+                                        className={`
+                                        relative shrink-0 flex items-center justify-center
+                                        ${isActive
+                                            ? 'z-20 mb-1 h-[32px] w-[32px] rounded-[999px] border-[1px] border-white/10 bg-white/[0.03]'
+                                            : 'h-[44px] w-[44px] md:h-[50px] md:w-[50px]'
                                         }
-                                    `}>
-                                        <span className={`transition-all duration-[800ms] font-bold tracking-widest ${
-                                            isActive ? 'text-white/30 text-[0.7rem]' : 'text-white/40 text-[0.95rem] md:text-[1.1rem]'
-                                        } ${isPast && !isActive ? 'text-white/90' : ''}`}>
+                                    `}
+                                    >
+                                        <span
+                                            className={`font-bold tracking-widest ${
+                                                isActive ? 'text-white/30 text-[0.7rem]' : 'text-white/40 text-[0.95rem] md:text-[1.1rem]'
+                                            } ${isPast && !isActive ? 'text-white/90' : ''}`}
+                                        >
                                             {step.number}
                                         </span>
                                     </div>
 
-                                    {/* Typography Stack */}
-                                    <div className={`
-                                        flex flex-col items-center text-center transition-all duration-[800ms] ease-[cubic-bezier(0.16,1,0.3,1)] 
-                                        overflow-hidden
-                                        ${isActive ? 'opacity-100 max-h-[400px] visible' : 'opacity-0 max-h-0 invisible'}
-                                    `}>
-                                        <h3 className="text-[1.5rem] md:text-[1.85rem] font-bold text-white tracking-tight leading-tight max-w-[350px]">{step.title}</h3>
-                                        <div className="flex flex-col space-y-1 mt-3">
-                                            <p className="text-[0.9rem] md:text-[0.95rem] text-white/50 leading-relaxed font-medium max-w-[350px]">{step.captionLines[0]} {step.captionLines[1]}</p>
+                                    {/* Fixed-width block: layout is stable; overflow-hidden on the button reveals it as the shell widens */}
+                                    {isActive && (
+                                        <div
+                                            key={`${step.id}-body`}
+                                            className="pointer-events-none absolute left-1/2 top-9 z-[12] w-[350px] -translate-x-1/2 text-center"
+                                        >
+                                            <h3 className="text-[1.5rem] font-bold leading-tight tracking-tight text-white md:text-[1.85rem]">{step.title}</h3>
+                                            <div className="mt-3 flex flex-col space-y-1">
+                                                <p className="text-[0.9rem] font-medium leading-relaxed text-white/50 md:text-[0.95rem]">{step.captionLines[0]} {step.captionLines[1]}</p>
+                                            </div>
                                         </div>
-                                    </div>
+                                    )}
                                 </div>
                             </button>
 
-                            {/* Center-aligned Seamless Vertical Connecting Line */}
                             {index !== STEPS.length - 1 && (
-                                <div className="relative h-[48px] flex items-center justify-center -mt-4 mb-0">
-                                    <div className={`
-                                        w-[2px] h-full transition-all duration-[1000ms] ease-in-out relative z-0
-                                        ${isPast ? 'bg-[#a78bfa] shadow-[0_0_12px_#a78bfa]' : 'bg-white/10'}
-                                    `} />
+                                <div
+                                    className="relative -mt-3 -mb-[7px] flex h-[44px] w-full items-stretch justify-center"
+                                    aria-hidden="true"
+                                >
+                                    <div className="absolute bottom-0 left-1/2 top-0 w-[2px] -translate-x-1/2 bg-white/[0.09]" />
+                                    {(isPast || isActive) && (
+                                        <div
+                                            className="absolute left-1/2 top-0 w-[2px] -translate-x-1/2 origin-top bg-[#a78bfa] shadow-[0_0_14px_rgba(167,139,250,0.55)]"
+                                            style={{
+                                                height: `${connectorFillPercents[index] ?? 0}%`,
+                                            }}
+                                        />
+                                    )}
                                 </div>
                             )}
                         </Fragment>
@@ -259,69 +362,441 @@ function SingleLineTimeline({
                 })}
             </div>
             <style jsx>{`
-                @keyframes fill-border-v {
-                    0% { clip-path: inset(0 0 100% 0); }
-                    100% { clip-path: inset(0 0 0 0); }
+                .hiw-active-card {
+                    box-shadow:
+                        0 -12px 28px -16px rgba(167, 139, 250, 0.22),
+                        0 48px 80px rgba(0, 0, 0, 0.6),
+                        0 0 0 1.5px rgba(255, 255, 255, 0.04),
+                        inset 0 0 32px rgba(167, 139, 250, 0.12);
                 }
             `}</style>
         </div>
     );
 }
 
-export default function HowItWorks() {
-    const sectionRef = useRef<HTMLElement | null>(null);
-    const consoleRef = useRef<HTMLDivElement | null>(null);
-    const tabRefs = useRef<Array<HTMLButtonElement | null>>([]);
-    const itemRefs = useRef<Array<HTMLDivElement | null>>([]);
-    const idBase = useId().replace(/:/g, "");
-    
-    const [activeIndex, setActiveIndex] = useState(0);
-    const [progressKey, setProgressKey] = useState(0); 
-    const [userHasInteracted, setUserHasInteracted] = useState(false);
+function ActiveCardBorder({
+    progressKey,
+    outlineProgress01,
+}: Readonly<{ progressKey: number; outlineProgress01: number }>) {
+    const frameRef = useRef<HTMLDivElement | null>(null);
+    const [size, setSize] = useState({ width: 0, height: 0 });
 
-    // Track active index based on scroll with IntersectionObserver
     useEffect(() => {
-        if (typeof IntersectionObserver === "undefined") return;
+        const frame = frameRef.current;
+        if (!frame) return;
 
-        const options = {
-            root: null,
-            threshold: 0.6,
+        const updateSize = () => {
+            const nextWidth = frame.clientWidth;
+            const nextHeight = frame.clientHeight;
+            setSize((current) =>
+                current.width === nextWidth && current.height === nextHeight
+                    ? current
+                    : { width: nextWidth, height: nextHeight }
+            );
         };
 
-        const observer = new IntersectionObserver((entries) => {
-            entries.forEach((entry) => {
-                if (entry.isIntersecting) {
-                    const index = parseInt(entry.target.getAttribute("data-index") || "0");
-                    setActiveIndex(index);
-                    setProgressKey((prev) => prev + 1);
-                }
-            });
-        }, options);
+        updateSize();
 
-        itemRefs.current.forEach((el) => {
-            if (el) observer.observe(el);
-        });
+        if (typeof ResizeObserver === "undefined") return;
+
+        const observer = new ResizeObserver(() => updateSize());
+        observer.observe(frame);
 
         return () => observer.disconnect();
     }, []);
 
-    // Also keep the auto-play timer, but it resets on scroll index change
+    const inset = 1;
+    const strokeWidth = 2;
+    const x = inset;
+    const y = inset;
+    const width = Math.max(size.width - inset * 2, 0);
+    const height = Math.max(size.height - inset * 2, 0);
+    const radius = Math.max(0, Math.min(ACTIVE_CARD_RADIUS_PX, width / 2, height / 2));
+    const centerX = x + width / 2;
+    const rightX = x + width;
+    const bottomY = y + height;
+
+    const leftPath = `M ${centerX} ${y} H ${x + radius} A ${radius} ${radius} 0 0 0 ${x} ${y + radius} V ${bottomY - radius} A ${radius} ${radius} 0 0 0 ${x + radius} ${bottomY} H ${centerX}`;
+    const rightPath = `M ${centerX} ${y} H ${rightX - radius} A ${radius} ${radius} 0 0 1 ${rightX} ${y + radius} V ${bottomY - radius} A ${radius} ${radius} 0 0 1 ${rightX - radius} ${bottomY} H ${centerX}`;
+    const dashOffset = 100 * (1 - outlineProgress01);
+
+    return (
+        <div
+            ref={frameRef}
+            key={`progress-${progressKey}`}
+            className="absolute inset-0 rounded-[inherit] pointer-events-none z-20"
+        >
+            {width > 0 && height > 0 && (
+                <svg
+                    className="absolute inset-0 h-full w-full"
+                    viewBox={`0 0 ${size.width} ${size.height}`}
+                    preserveAspectRatio="none"
+                    aria-hidden="true"
+                >
+                    <path
+                        d={leftPath}
+                        pathLength="100"
+                        fill="none"
+                        stroke="#a78bfa"
+                        strokeWidth={strokeWidth}
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        style={{
+                            filter: "drop-shadow(0 0 6px rgba(167,139,250,0.95))",
+                            strokeDasharray: 100,
+                            strokeDashoffset: dashOffset,
+                        }}
+                    />
+                    <path
+                        d={rightPath}
+                        pathLength="100"
+                        fill="none"
+                        stroke="#a78bfa"
+                        strokeWidth={strokeWidth}
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        style={{
+                            filter: "drop-shadow(0 0 6px rgba(167,139,250,0.95))",
+                            strokeDasharray: 100,
+                            strokeDashoffset: dashOffset,
+                        }}
+                    />
+                </svg>
+            )}
+        </div>
+    );
+}
+
+function captureTimelineFlipState(
+    tabRefs: MutableRefObject<Array<HTMLButtonElement | null>>,
+    flipStateBeforeRef: MutableRefObject<Flip.FlipState | null>
+) {
+    const buttons = tabRefs.current.filter(Boolean) as HTMLButtonElement[];
+    if (buttons.length === 0) return;
+    flipStateBeforeRef.current = Flip.getState(buttons, {
+        props: "borderRadius,backgroundColor,boxShadow",
+    });
+}
+
+export default function HowItWorks() {
+    const sectionRef = useRef<HTMLElement | null>(null);
+    const tabRefs = useRef<Array<HTMLButtonElement | null>>([]);
+    const itemRefs = useRef<Array<HTMLDivElement | null>>([]);
+    const idBase = useId().replace(/:/g, "");
+    const flipStateBeforeRef = useRef<Flip.FlipState | null>(null);
+    const flipCtxRef = useRef<ReturnType<typeof gsap.context> | null>(null);
+    const activeIndexRef = useRef(0);
+    const [activeIndex, setActiveIndex] = useState(0);
+    const [progressKey, setProgressKey] = useState(0);
+    /** Only true after an explicit click/keyboard interaction — NOT scroll. */
+    const [userHasInteracted, setUserHasInteracted] = useState(false);
+    const suppressScrollCommitUntilRef = useRef(0);
+    /** One scalar for the committed step: card outline + connector below share this [0,1] progress. */
+    const [segmentCombined01, setSegmentCombined01] = useState(0);
+    const segmentCombinedRef = useRef(0);
+    segmentCombinedRef.current = segmentCombined01;
+
+    const scrollStartSfRef = useRef(0);
+    const scrollStartCombinedRef = useRef(0);
+    const isVisibleRef = useRef(false);
+
+    const connectorFillPercents = useMemo(
+        () => connectorFillsFromSegmentCombined(activeIndex, segmentCombined01),
+        [activeIndex, segmentCombined01]
+    );
+    const cardOutlineProgress01 = useMemo(
+        () => cardOutlineProgressFromCombined(segmentCombined01),
+        [segmentCombined01]
+    );
+
+    const isScrollingRef = useRef(false);
+    const isSnappingRef = useRef(false);
+    const scrollRafRef = useRef<number | null>(null);
+    const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const snapTweenRef = useRef<gsap.core.Tween | null>(null);
+    const stepFloatRef = useRef(0);
+    const stepClockStartRef = useRef(0);
+    const savedElapsedOnScrollStartRef = useRef(0);
+    const reduceMotionRef = useRef(false);
+
+    activeIndexRef.current = activeIndex;
+
+    /** 0 when section top = viewport top (sticky engages); +1 per vh of travel. Unclamped. */
+    const computeStepFloat = useCallback(() => {
+        const section = sectionRef.current;
+        if (!section) return 0;
+        const vh = window.innerHeight || 1;
+        return -section.getBoundingClientRect().top / vh;
+    }, []);
+
+    const applyStepIndex = useCallback((nextIndex: number) => {
+        if (nextIndex === activeIndexRef.current) return;
+        activeIndexRef.current = nextIndex;
+        stepClockStartRef.current = performance.now();
+        captureTimelineFlipState(tabRefs, flipStateBeforeRef);
+        setActiveIndex(nextIndex);
+        setProgressKey((k) => k + 1);
+    }, []);
+
+    const applyNextStepAutoplay = useCallback(() => {
+        const c = activeIndexRef.current;
+        if (c >= STEPS.length - 1) return;
+        applyStepIndex(c + 1);
+    }, [applyStepIndex]);
+
+    const runSnapToCanonical = useCallback(() => {
+        snapTweenRef.current?.kill();
+        snapTweenRef.current = null;
+        const elapsed = performance.now() - stepClockStartRef.current;
+        const target = canonicalSegmentCombinedFromElapsed(elapsed);
+        const start = segmentCombinedRef.current;
+        if (reduceMotionRef.current) {
+            setSegmentCombined01(target);
+            isSnappingRef.current = false;
+            return;
+        }
+        const proxy = { t: 0 };
+        isSnappingRef.current = true;
+        snapTweenRef.current = gsap.to(proxy, {
+            t: 1,
+            duration: SNAP_DURATION_S,
+            ease: "power1.out",
+            onUpdate: () => {
+                const k = proxy.t;
+                setSegmentCombined01(start + (target - start) * k);
+            },
+            onComplete: () => {
+                isSnappingRef.current = false;
+                snapTweenRef.current = null;
+                setSegmentCombined01(target);
+            },
+        });
+    }, []);
+
+    const finishScrollInteraction = useCallback(() => {
+        if (!isScrollingRef.current) return;
+
+        if (idleTimerRef.current) {
+            clearTimeout(idleTimerRef.current);
+            idleTimerRef.current = null;
+        }
+        if (scrollRafRef.current != null) {
+            cancelAnimationFrame(scrollRafRef.current);
+            scrollRafRef.current = null;
+        }
+
+        const sf = computeStepFloat();
+        stepFloatRef.current = sf;
+
+        const startSf = scrollStartSfRef.current;
+        const startC = scrollStartCombinedRef.current;
+        const combined = Math.min(1, Math.max(0, startC + sf - startSf));
+        setSegmentCombined01(combined);
+
+        isScrollingRef.current = false;
+
+        const c = activeIndexRef.current;
+        const sfClamped = Math.max(0, Math.min(STEPS.length - 1, sf));
+        const nearest = Math.max(0, Math.min(STEPS.length - 1, Math.round(sfClamped)));
+        const distance = Math.abs(sf - c);
+
+        const allowScrollCommit = performance.now() >= suppressScrollCommitUntilRef.current;
+        if (allowScrollCommit && nearest !== c && distance >= COMMIT_BAND) {
+            applyStepIndex(nearest);
+            return;
+        }
+
+        stepClockStartRef.current = performance.now() - savedElapsedOnScrollStartRef.current;
+        runSnapToCanonical();
+    }, [applyStepIndex, computeStepFloat, runSnapToCanonical]);
+
+    useLayoutEffect(() => {
+        flipCtxRef.current?.revert();
+        flipCtxRef.current = null;
+
+        const state = flipStateBeforeRef.current;
+        flipStateBeforeRef.current = null;
+        if (!state) return;
+
+        flipCtxRef.current = gsap.context(() => {
+            Flip.from(state, {
+                duration: FLIP_DURATION_S,
+                ease: FLIP_EASE,
+                nested: false,
+                absolute: false,
+                scale: false,
+            });
+        });
+
+        return () => {
+            flipCtxRef.current?.revert();
+            flipCtxRef.current = null;
+        };
+    }, [activeIndex]);
+
     useEffect(() => {
-        if (userHasInteracted) return;
+        stepClockStartRef.current = performance.now();
+        setSegmentCombined01(0);
+    }, [activeIndex]);
 
-        const intervalId = window.setInterval(() => {
-            setActiveIndex((prev) => (prev + 1) % STEPS.length);
-            setProgressKey((prev) => prev + 1);
-        }, AUTOPLAY_INTERVAL_MS);
+    useLayoutEffect(() => {
+        if (typeof window === "undefined") return;
+        reduceMotionRef.current = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    }, []);
 
-        return () => window.clearInterval(intervalId);
-    }, [activeIndex, userHasInteracted]);
+    /** Initial scroll position → committed step + fills (no Flip on first paint). */
+    useLayoutEffect(() => {
+        const sf = computeStepFloat();
+        const sfClamped = Math.max(0, Math.min(STEPS.length - 1, sf));
+        stepFloatRef.current = sfClamped;
+        const initial = Math.round(sfClamped);
+        activeIndexRef.current = initial;
+        setActiveIndex((prev) => (prev === initial ? prev : initial));
+        setSegmentCombined01(0);
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- one-time sync to scroll on mount
+    }, []);
+
+    /** Only autoplay when the section is actually visible. Reset clock on each visibility entry. */
+    useEffect(() => {
+        const section = sectionRef.current;
+        if (!section) return;
+        const observer = new IntersectionObserver(
+            ([entry]) => {
+                const wasVisible = isVisibleRef.current;
+                isVisibleRef.current = entry.isIntersecting;
+                if (!wasVisible && entry.isIntersecting) {
+                    stepClockStartRef.current = performance.now();
+                }
+            },
+            { threshold: 0.1 }
+        );
+        observer.observe(section);
+        return () => observer.disconnect();
+    }, []);
+
+    useEffect(() => {
+        if (typeof window === "undefined") return;
+
+        const scheduleScrollRead = () => {
+            if (scrollRafRef.current != null) return;
+            scrollRafRef.current = window.requestAnimationFrame(() => {
+                scrollRafRef.current = null;
+                const sf = computeStepFloat();
+                stepFloatRef.current = sf;
+                if (!isScrollingRef.current) return;
+
+                const startSf = scrollStartSfRef.current;
+                const startC = scrollStartCombinedRef.current;
+                const combined = Math.min(1, Math.max(0, startC + sf - startSf));
+                setSegmentCombined01(combined);
+            });
+        };
+
+        const onScroll = () => {
+            const sf = computeStepFloat();
+            const inSection = sf >= 0 && sf <= STEPS.length - 1;
+
+            if (!inSection) {
+                if (isScrollingRef.current) finishScrollInteraction();
+                return;
+            }
+
+            if (!isScrollingRef.current) {
+                isScrollingRef.current = true;
+
+                if (isSnappingRef.current) {
+                    snapTweenRef.current?.kill();
+                    snapTweenRef.current = null;
+                    isSnappingRef.current = false;
+                    const canonical = canonicalSegmentCombinedFromElapsed(
+                        performance.now() - stepClockStartRef.current
+                    );
+                    segmentCombinedRef.current = canonical;
+                    setSegmentCombined01(canonical);
+                }
+
+                scrollStartSfRef.current = sf;
+                scrollStartCombinedRef.current = segmentCombinedRef.current;
+                savedElapsedOnScrollStartRef.current = performance.now() - stepClockStartRef.current;
+            }
+
+            if (idleTimerRef.current) {
+                clearTimeout(idleTimerRef.current);
+                idleTimerRef.current = null;
+            }
+            idleTimerRef.current = setTimeout(() => {
+                idleTimerRef.current = null;
+                finishScrollInteraction();
+            }, SCROLL_IDLE_MS);
+
+            scheduleScrollRead();
+        };
+
+        const onScrollEnd = () => {
+            if (idleTimerRef.current) {
+                clearTimeout(idleTimerRef.current);
+                idleTimerRef.current = null;
+            }
+            finishScrollInteraction();
+        };
+
+        const onResize = () => {
+            const sf = computeStepFloat();
+            stepFloatRef.current = sf;
+            if (isScrollingRef.current) {
+                const startSf = scrollStartSfRef.current;
+                const startC = scrollStartCombinedRef.current;
+                const combined = Math.min(1, Math.max(0, startC + sf - startSf));
+                setSegmentCombined01(combined);
+            }
+        };
+
+        window.addEventListener("scroll", onScroll, { passive: true });
+        window.addEventListener("scrollend", onScrollEnd);
+        window.addEventListener("resize", onResize);
+
+        return () => {
+            window.removeEventListener("scroll", onScroll);
+            window.removeEventListener("scrollend", onScrollEnd);
+            window.removeEventListener("resize", onResize);
+            if (scrollRafRef.current != null) cancelAnimationFrame(scrollRafRef.current);
+            if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
+            snapTweenRef.current?.kill();
+        };
+    }, [computeStepFloat, finishScrollInteraction]);
+
+    /** Drive unified segment progress (card outline + spine) from the same clock as autoplay. */
+    useEffect(() => {
+        if (typeof window === "undefined") return;
+        let rafId = 0;
+
+        const tick = () => {
+            rafId = window.requestAnimationFrame(tick);
+            if (!isVisibleRef.current) return;
+            if (isScrollingRef.current || isSnappingRef.current) return;
+
+            const now = performance.now();
+            const elapsed = now - stepClockStartRef.current;
+            const c = activeIndexRef.current;
+            const isLastStep = c >= STEPS.length - 1;
+
+            if (!userHasInteracted && !isLastStep && elapsed >= AUTOPLAY_INTERVAL_MS) {
+                applyNextStepAutoplay();
+                return;
+            }
+
+            setSegmentCombined01(canonicalSegmentCombinedFromElapsed(elapsed));
+        };
+
+        rafId = window.requestAnimationFrame(tick);
+        return () => cancelAnimationFrame(rafId);
+    }, [activeIndex, userHasInteracted, applyNextStepAutoplay]);
 
     const handleStepSelection = (index: number) => {
         setUserHasInteracted(true);
-        setActiveIndex(index);
-        setProgressKey((prev) => prev + 1);
-        
+        suppressScrollCommitUntilRef.current = performance.now() + PROGRAMMATIC_SCROLL_GUARD_MS;
+        applyStepIndex(index);
+
         // Scroll to the respective anchor
         itemRefs.current[index]?.scrollIntoView({ behavior: "smooth", block: "center" });
     };
@@ -394,6 +869,8 @@ export default function HowItWorks() {
                         <div className="hidden lg:block">
                             <SingleLineTimeline
                                 activeIndex={activeIndex}
+                                cardOutlineProgress01={cardOutlineProgress01}
+                                connectorFillPercents={connectorFillPercents}
                                 idBase={idBase}
                                 tabRefs={tabRefs}
                                 onSelectStep={handleStepSelection}

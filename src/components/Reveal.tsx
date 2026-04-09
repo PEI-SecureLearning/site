@@ -6,14 +6,23 @@ interface RevealProps {
   children: ReactNode;
   className?: string;
   delay?: number;
+  /** `lift` = farther upward travel + slower transition than default fade-up */
+  motion?: "default" | "lift";
 }
 
-export default function Reveal({ children, className, delay = 0 }: RevealProps) {
+export default function Reveal({
+  children,
+  className,
+  delay = 0,
+  motion = "default",
+}: RevealProps) {
   const ref = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     const element = ref.current;
     if (!element) return;
+
+    const isLift = motion === "lift";
 
     const observer = new IntersectionObserver(
       (entries) => {
@@ -24,17 +33,23 @@ export default function Reveal({ children, className, delay = 0 }: RevealProps) 
           }
         });
       },
-      {
-        threshold: 0.2,
-        rootMargin: "0px 0px -5% 0px",
-      }
+      isLift
+        ? {
+            /* Only fire when the block overlaps the vertical middle of the viewport */
+            threshold: 0.12,
+            rootMargin: "-32% 0px -32% 0px",
+          }
+        : {
+            threshold: 0.2,
+            rootMargin: "0px 0px -5% 0px",
+          }
     );
 
-    element.classList.add("fade-up");
+    element.classList.add(motion === "lift" ? "fade-up-lift" : "fade-up");
     observer.observe(element);
 
     return () => observer.disconnect();
-  }, []);
+  }, [motion]);
 
   return (
     <div

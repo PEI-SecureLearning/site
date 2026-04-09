@@ -149,6 +149,20 @@ a:hover {
   transform: translateY(0);
 }
 
+/* Reveal variant: more travel + slower ease (e.g. metrics strip) */
+.fade-up-lift {
+  opacity: 0;
+  transform: translateY(88px);
+  transition:
+    opacity 2s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 2s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.fade-up-lift.is-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
 /* F3 — proportional “zoom” for message copy; knob: --f3-message-scale on :root */
 .f3-message-scale-root {
   font-size: calc(1rem * var(--f3-message-scale, 1));
@@ -1269,6 +1283,13 @@ header[data-scrolled="true"] {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .fade-up,
+  .fade-up-lift {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+
   .feature-monolith-float,
   .feature-card-float {
     animation: none;

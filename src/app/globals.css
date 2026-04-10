@@ -163,6 +163,15 @@ a:hover {
   transform: translateY(0);
 }
 
+.pure-fade {
+  opacity: 0;
+  transition: opacity 2400ms ease;
+}
+
+.pure-fade.is-visible {
+  opacity: 1;
+}
+
 /* F3 — proportional “zoom” for message copy; knob: --f3-message-scale on :root */
 .f3-message-scale-root {
   font-size: calc(1rem * var(--f3-message-scale, 1));

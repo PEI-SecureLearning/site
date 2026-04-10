@@ -189,6 +189,8 @@ interface LightRaysProps {
   hideOrigin?: boolean;
   /** Optionally pin the origin exactly to a DOM element's center via ID */
   originElementId?: string;
+  /** Keep the WebGL layer alive instead of auto-tearing it down on viewport exit */
+  keepAlive?: boolean;
 }
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -214,6 +216,7 @@ export default function LightRays({
   isPaused = false,
   hideOrigin = false,
   originElementId,
+  keepAlive = false,
 }: LightRaysProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const uniformsRef = useRef<any>(null);
@@ -223,10 +226,15 @@ export default function LightRays({
   const animationIdRef = useRef<number | null>(null);
   const meshRef = useRef<any>(null);
   const cleanupFnRef = useRef<(() => void) | null>(null);
-  const [isVisible, setIsVisible] = useState(false);
+  const [isVisible, setIsVisible] = useState(keepAlive);
 
   /* Intersection observer — only spin WebGL when in viewport */
   useEffect(() => {
+    if (keepAlive) {
+      setIsVisible(true);
+      return;
+    }
+
     const el = containerRef.current;
     if (!el) return;
 
@@ -237,7 +245,7 @@ export default function LightRays({
     observer.observe(el);
 
     return () => observer.disconnect();
-  }, []);
+  }, [keepAlive]);
 
   /* WebGL lifecycle */
   useEffect(() => {

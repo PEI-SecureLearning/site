@@ -7,7 +7,7 @@ interface RevealProps {
   className?: string;
   delay?: number;
   /** `lift` = farther upward travel + slower transition than default fade-up */
-  motion?: "default" | "lift";
+  motion?: "default" | "lift" | "fade";
 }
 
 export default function Reveal({
@@ -45,7 +45,11 @@ export default function Reveal({
           }
     );
 
-    element.classList.add(motion === "lift" ? "fade-up-lift" : "fade-up");
+    const motionClass = 
+      motion === "lift" ? "fade-up-lift" : 
+      motion === "fade" ? "pure-fade" : 
+      "fade-up";
+    element.classList.add(motionClass);
     observer.observe(element);
 
     return () => observer.disconnect();

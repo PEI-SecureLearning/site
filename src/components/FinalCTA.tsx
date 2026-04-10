@@ -7,6 +7,7 @@ import LightRays from "./effects/LightRays";
 export default function FinalCTA() {
   const sectionRef = useRef<HTMLElement | null>(null);
   const [isPaused, setIsPaused] = useState(true);
+  const [showRays, setShowRays] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [isTablet, setIsTablet] = useState(false);
 
@@ -27,8 +28,15 @@ export default function FinalCTA() {
     if (!el) return;
 
     const observer = new IntersectionObserver(
-      ([entry]) => setIsPaused(!entry.isIntersecting),
-      { threshold: 0.05, rootMargin: "200px 0px 200px 0px" }
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setShowRays(true);
+          setIsPaused(false);
+        } else {
+          setShowRays(false);
+        }
+      },
+      { threshold: 0.01, rootMargin: "600px 0px 600px 0px" }
     );
     observer.observe(el);
     return () => observer.disconnect();
@@ -42,28 +50,26 @@ export default function FinalCTA() {
     >
       {/* ── Top border glow ── */}
       <div
-        className="absolute top-0 left-0 right-0 h-px"
-        aria-hidden
-        style={{
-          background:
-            "linear-gradient(90deg, transparent 5%, rgba(167,139,250,0.35) 30%, rgba(124,58,237,0.45) 50%, rgba(167,139,250,0.35) 70%, transparent 95%)",
-        }}
-      />
-      {/* Soft top fade-in from page bg */}
-      <div
         className="pointer-events-none absolute top-0 left-0 right-0 h-28"
         aria-hidden
         style={{
           background:
-            "linear-gradient(180deg, var(--background) 0%, transparent 100%)",
+            "linear-gradient(180deg, rgba(12,10,15,0.56) 0%, rgba(12,10,15,0.14) 56%, transparent 100%)",
         }}
       />
 
       {/* ── LightRays — single bottom-center source ── */}
       <div
-        className="pointer-events-none absolute inset-0 z-0"
+        className="pointer-events-none absolute inset-x-0 -top-24 bottom-0 z-0"
         aria-hidden
-        style={{ opacity: 0.9 }}
+        style={{
+          opacity: showRays ? 0.9 : 0,
+          transition: "opacity 520ms cubic-bezier(0.22, 1, 0.36, 1)",
+          maskImage:
+            "linear-gradient(180deg, transparent 0%, rgba(0,0,0,0.18) 10%, rgba(0,0,0,0.68) 24%, black 38%)",
+          WebkitMaskImage:
+            "linear-gradient(180deg, transparent 0%, rgba(0,0,0,0.18) 10%, rgba(0,0,0,0.68) 24%, black 38%)",
+        }}
       >
         <LightRays
           raysOrigin={(isMobile || isTablet) ? "bottom-center-elevated" : "bottom-center"}
@@ -79,6 +85,7 @@ export default function FinalCTA() {
           isPaused={isPaused}
           hideOrigin={isMobile || isTablet}
           originElementId={isMobile ? "github-logo-anchor" : (isTablet ? "tablet-anchor" : undefined)}
+          keepAlive={true}
         />
       </div>
 
@@ -95,7 +102,7 @@ export default function FinalCTA() {
       {/* ── Content: CTA in upper portion, footer at base ── */}
       <div className="relative z-10 flex min-h-[inherit] flex-col px-6">
         {/* CTA — positioned in the upper-center area */}
-        <div className="flex flex-1 items-center justify-center pt-16 pb-8">
+        <div className="flex flex-1 items-center justify-center pt-10 pb-8 md:pt-8">
           <div className="mx-auto flex max-w-[880px] flex-col items-center gap-8 text-center translate-y-3">
             <h2
               className="text-4xl font-semibold leading-[1.08] tracking-tight sm:text-5xl md:text-[3.75rem]"

@@ -411,7 +411,7 @@ export default function LightRays({
 
   /* Mouse tracking */
   useEffect(() => {
-    if (!followMouse) return;
+    if (!followMouse || !isVisible || isPaused) return;
     const handle = (e: MouseEvent) => {
       const el = containerRef.current;
       if (!el) return;
@@ -423,7 +423,7 @@ export default function LightRays({
     };
     window.addEventListener("mousemove", handle);
     return () => window.removeEventListener("mousemove", handle);
-  }, [followMouse]);
+  }, [followMouse, isPaused, isVisible]);
 
   return (
     <div

@@ -501,6 +501,8 @@ export default function HowItWorks() {
     const scrollStartSfRef = useRef(0);
     const scrollStartCombinedRef = useRef(0);
     const isVisibleRef = useRef(false);
+    const [isSectionActive, setIsSectionActive] = useState(false);
+    const [isDocumentHidden, setIsDocumentHidden] = useState(false);
 
     const connectorFillPercents = useMemo(
         () => connectorFillsFromSegmentCombined(activeIndex, segmentCombined01),
@@ -736,8 +738,10 @@ export default function HowItWorks() {
             ([entry]) => {
                 const wasVisible = isVisibleRef.current;
                 isVisibleRef.current = entry.isIntersecting;
+                setIsSectionActive(entry.isIntersecting);
                 if (!wasVisible && entry.isIntersecting) {
                     stepClockStartRef.current = performance.now();
+                    smoothSfRef.current = null;
                 }
             },
             { threshold: 0.1 }
@@ -747,7 +751,18 @@ export default function HowItWorks() {
     }, []);
 
     useEffect(() => {
-        if (typeof window === "undefined") return;
+        const update = () => setIsDocumentHidden(document.hidden);
+
+        update();
+        document.addEventListener("visibilitychange", update);
+
+        return () => document.removeEventListener("visibilitychange", update);
+    }, []);
+
+    const shouldRunSectionMotion = isSectionActive && !isDocumentHidden;
+
+    useEffect(() => {
+        if (typeof window === "undefined" || !shouldRunSectionMotion) return;
 
         const scheduleScrollRead = () => {
             if (scrollRafRef.current != null) return;
@@ -835,11 +850,11 @@ export default function HowItWorks() {
             if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
             snapTweenRef.current?.kill();
         };
-    }, [computeStepFloat, finishScrollInteraction]);
+    }, [computeStepFloat, finishScrollInteraction, shouldRunSectionMotion]);
 
     /** Drive unified segment progress (card outline + spine) from the same clock as autoplay. */
     useEffect(() => {
-        if (typeof window === "undefined") return;
+        if (typeof window === "undefined" || !shouldRunSectionMotion) return;
         let rafId = 0;
 
         const LERP_FACTOR = 0.085; // lower = smoother/floatier
@@ -878,7 +893,7 @@ export default function HowItWorks() {
 
         rafId = window.requestAnimationFrame(tick);
         return () => cancelAnimationFrame(rafId);
-    }, [activeIndex, userHasInteracted, applyNextStepAutoplay, updateIntroVisuals]);
+    }, [activeIndex, userHasInteracted, applyNextStepAutoplay, shouldRunSectionMotion, updateIntroVisuals]);
 
     const handleStepSelection = (index: number) => {
         setUserHasInteracted(true);

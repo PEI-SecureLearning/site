@@ -127,6 +127,13 @@ a:hover {
   z-index: -1;
 }
 
+@media (max-width: 767px) {
+  .journey-hero::after {
+    inset: -18% -8% auto;
+    height: clamp(280px, 42vh, 360px);
+  }
+}
+
 .section-spacing {
   --section-space: clamp(3.5rem, 9vh, 6rem);
   padding-top: var(--section-space);

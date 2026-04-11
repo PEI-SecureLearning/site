@@ -82,6 +82,8 @@ export function EarlyAccessModal({ onClose }: { onClose: () => void }) {
   const [fieldError, setFieldError] = useState<string | null>(null);
 
   const [reduceMotion, setReduceMotion] = useState(false);
+  /** Touch-primary UI (phones, most tablets); used to avoid scrim-dismiss during password prank */
+  const [coarsePointer, setCoarsePointer] = useState(false);
   const [fieldPos, setFieldPos] = useState<{ left: number; top: number } | null>(null);
   const [fieldMotionOn, setFieldMotionOn] = useState(false);
   const [fleeCount, setFleeCount] = useState(0);
@@ -92,6 +94,14 @@ export function EarlyAccessModal({ onClose }: { onClose: () => void }) {
   useEffect(() => {
     const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
     const apply = () => setReduceMotion(mq.matches);
+    apply();
+    mq.addEventListener("change", apply);
+    return () => mq.removeEventListener("change", apply);
+  }, []);
+
+  useEffect(() => {
+    const mq = window.matchMedia("(pointer: coarse)");
+    const apply = () => setCoarsePointer(mq.matches);
     apply();
     mq.addEventListener("change", apply);
     return () => mq.removeEventListener("change", apply);
@@ -237,7 +247,10 @@ export function EarlyAccessModal({ onClose }: { onClose: () => void }) {
             "radial-gradient(ellipse 88% 78% at 50% 42%, rgba(4,2,8,0.55) 0%, rgba(4,2,8,0.78) 48%, rgba(2,1,6,0.94) 100%)",
         }}
         aria-hidden
-        onClick={onClose}
+        onClick={() => {
+          if (phase === "prank" && coarsePointer) return;
+          onClose();
+        }}
       />
 
       <div className="pointer-events-none relative z-10 mx-auto flex min-h-[100dvh] max-w-[1200px] items-center justify-center px-5 py-12 sm:px-8 sm:py-16">
@@ -371,7 +384,7 @@ export function EarlyAccessModal({ onClose }: { onClose: () => void }) {
       {phase === "prank" && !reduceMotion && fieldPos ? (
         <div
           className={cn(
-            "fixed z-[110] origin-center",
+            "fixed z-[110] origin-center touch-manipulation",
             prankDecoyPuff ? "pointer-events-none" : "pointer-events-auto"
           )}
           style={{
@@ -399,6 +412,22 @@ export function EarlyAccessModal({ onClose }: { onClose: () => void }) {
                 ? "left 0.42s cubic-bezier(0.22, 1, 0.36, 1), top 0.42s cubic-bezier(0.22, 1, 0.36, 1)"
                 : "none",
           }}
+          onPointerDown={(e) => {
+            e.stopPropagation();
+            // Touch: flee runs on pointerenter and moves this node before click is dispatched;
+            // without capture, the synthetic click hits the scrim and closes the modal.
+            if (e.pointerType === "touch" || e.pointerType === "pen") {
+              const el = e.currentTarget;
+              if (typeof el.setPointerCapture === "function") {
+                try {
+                  el.setPointerCapture(e.pointerId);
+                } catch {
+                  /* invalid pointerId, etc. */
+                }
+              }
+            }
+          }}
+          onClick={(e) => e.stopPropagation()}
           onPointerEnter={triggerFlee}
         >
           <div aria-hidden>

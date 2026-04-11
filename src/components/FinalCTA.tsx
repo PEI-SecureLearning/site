@@ -9,6 +9,7 @@ export default function FinalCTA() {
   const sectionRef = useRef<HTMLElement | null>(null);
   const [isPaused, setIsPaused] = useState(true);
   const [showRays, setShowRays] = useState(false);
+  const [isDocumentHidden, setIsDocumentHidden] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [isTablet, setIsTablet] = useState(false);
 
@@ -23,6 +24,14 @@ export default function FinalCTA() {
     return () => window.removeEventListener("resize", handleResize);
   }, []);
 
+  useEffect(() => {
+    const update = () => setIsDocumentHidden(document.hidden);
+
+    update();
+    document.addEventListener("visibilitychange", update);
+    return () => document.removeEventListener("visibilitychange", update);
+  }, []);
+
   /* Only run the WebGL rays when the section is in / near viewport */
   useEffect(() => {
     const el = sectionRef.current;
@@ -35,6 +44,7 @@ export default function FinalCTA() {
           setIsPaused(false);
         } else {
           setShowRays(false);
+          setIsPaused(true);
         }
       },
       { threshold: 0.01, rootMargin: "600px 0px 600px 0px" }
@@ -42,6 +52,17 @@ export default function FinalCTA() {
     observer.observe(el);
     return () => observer.disconnect();
   }, []);
+
+  useEffect(() => {
+    if (isDocumentHidden) {
+      setIsPaused(true);
+      return;
+    }
+
+    if (showRays) {
+      setIsPaused(false);
+    }
+  }, [isDocumentHidden, showRays]);
 
   return (
     <section

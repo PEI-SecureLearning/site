@@ -1,12 +1,13 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import Link from "next/link";
 import Reveal from "./Reveal";
+import { useEarlyAccess } from "./early-access/EarlyAccessProvider";
 import DarkVeil from "./effects/DarkVeil";
 import ShinyText from "./ShinyText";
 
 export default function Hero() {
+  const { open: openEarlyAccess } = useEarlyAccess();
   const sectionRef = useRef<HTMLElement | null>(null);
   const [isVeilPaused, setIsVeilPaused] = useState(false);
   const [isDocumentHidden, setIsDocumentHidden] = useState(false);
@@ -89,9 +90,9 @@ export default function Hero() {
 
             {/* CTAs */}
             <div className="flex flex-col items-center justify-center gap-4 sm:flex-row">
-              <Link href="/coming-soon" className="btn btn-primary">
+              <button type="button" className="btn btn-primary" onClick={openEarlyAccess}>
                 Request Early Access
-              </Link>
+              </button>
               <a href="#how-it-works" className="btn btn-secondary">
                 See How It Works
               </a>

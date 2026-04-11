@@ -1,10 +1,11 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import Link from "next/link";
 import LightRays from "./effects/LightRays";
+import { useEarlyAccess } from "./early-access/EarlyAccessProvider";
 
 export default function FinalCTA() {
+  const { open: openEarlyAccess } = useEarlyAccess();
   const sectionRef = useRef<HTMLElement | null>(null);
   const [isPaused, setIsPaused] = useState(true);
   const [showRays, setShowRays] = useState(false);
@@ -111,8 +112,7 @@ export default function FinalCTA() {
               Ready to stop guessing about your{" "}
               <span
                 style={{
-                  background:
-                    "linear-gradient(90deg, #a78bfa 0%, #9B6BFF 45%, #7C3AED 100%)",
+                  background: "var(--gradient-accent)",
                   WebkitBackgroundClip: "text",
                   WebkitTextFillColor: "transparent",
                 }}
@@ -122,9 +122,9 @@ export default function FinalCTA() {
               ?
             </h2>
 
-            <Link href="/coming-soon" className="btn btn-primary">
+            <button type="button" className="btn btn-primary" onClick={openEarlyAccess}>
               Request Early Access
-            </Link>
+            </button>
           </div>
         </div>
 

@@ -233,6 +233,132 @@ export function F3GhostInboxSidebar({
     );
 }
 
+function GhostRowMobilePanel({
+    row,
+    index,
+    shellVisible,
+    selectedActive,
+}: Readonly<{
+    row: Row;
+    index: number;
+    shellVisible: boolean;
+    selectedActive: boolean;
+}>) {
+    const { sender, subject, time, preview, initials, selected } = row;
+    const bgStyle = AVATAR_BG[index % AVATAR_BG.length] ?? AVATAR_BG[0];
+
+    if (selected) {
+        return (
+            <div
+                className="f3-ghost-row-selected relative min-h-[5.35rem] border-b px-4 py-3.5"
+                data-shell-visible={shellVisible}
+                data-selected-active={selectedActive}
+            >
+                <div
+                    className="f3-ghost-row-selected-line absolute bottom-0 left-0 top-0 w-px bg-white/[0.24]"
+                    aria-hidden
+                />
+                <div className="flex gap-3 pl-2">
+                    <InboxRowAvatar
+                        initials={initials}
+                        bgStyle={bgStyle}
+                        selected
+                        ghost={false}
+                    />
+                    <div className="min-w-0 flex-1">
+                        <div className="flex items-baseline justify-between gap-3">
+                            <p className="f3-ghost-row-selected-title min-w-0 truncate text-[0.82rem] font-medium leading-tight">
+                                {sender}
+                            </p>
+                            <span
+                                className="f3-ghost-row-selected-time shrink-0 font-mono text-[0.62rem] tabular-nums leading-none"
+                                style={{ fontFamily: "var(--font-geist-mono), monospace" }}
+                            >
+                                {time}
+                            </span>
+                        </div>
+                        <p className="f3-ghost-row-selected-subject mt-1 truncate text-[0.73rem] leading-snug">
+                            {subject}
+                        </p>
+                        <p className="f3-ghost-row-selected-preview mt-1 truncate text-[0.66rem] leading-snug">
+                            {preview}
+                        </p>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
+    return (
+        <div
+            className="f3-ghost-row min-h-[5.1rem] border-b px-4 py-3.5"
+            data-shell-visible={shellVisible}
+        >
+            <div className="flex gap-3">
+                <InboxRowAvatar initials={initials} bgStyle={bgStyle} selected={false} ghost />
+                <div className="min-w-0 flex-1" style={ghostPreviewMask}>
+                    <div className="flex items-baseline justify-between gap-3">
+                        <p className="min-w-0 truncate text-[0.78rem] font-medium leading-tight text-white/[0.28]">
+                            {sender}
+                        </p>
+                        <span
+                            className="shrink-0 font-mono text-[0.6rem] tabular-nums leading-none text-white/[0.18]"
+                            style={{ fontFamily: "var(--font-geist-mono), monospace" }}
+                        >
+                            {time}
+                        </span>
+                    </div>
+                    <p className="mt-1 truncate text-[0.69rem] leading-snug text-white/[0.22]">
+                        {subject}
+                    </p>
+                    <p className="mt-1 truncate text-[0.62rem] leading-snug text-white/[0.14]">
+                        {preview}
+                    </p>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+export function F3GhostInboxMobilePanel({
+    shellVisible = true,
+    selectedActive = true,
+}: Readonly<{
+    shellVisible?: boolean;
+    selectedActive?: boolean;
+}>) {
+    return (
+        <div className="relative flex h-full min-h-0 min-w-0 flex-1 flex-col" aria-hidden>
+            <div
+                className="f3-ghost-sidebar-shell relative flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain bg-[color-mix(in_srgb,var(--surface-subtle)_94%,var(--background))]"
+                data-shell-visible={shellVisible}
+                style={{
+                    boxShadow:
+                        "inset 0 1px 0 rgba(255,255,255,0.018), inset -1px 0 0 rgba(255,255,255,0.016)",
+                }}
+            >
+                {SIDEBAR_ROWS.map((row, index) => (
+                    <GhostRowMobilePanel
+                        key={`mobile-panel-${row.sender}-${row.time}-${row.subject}`}
+                        row={row}
+                        index={index}
+                        shellVisible={shellVisible}
+                        selectedActive={selectedActive}
+                    />
+                ))}
+            </div>
+            <div
+                className="pointer-events-none absolute inset-x-0 top-0 z-10 h-12 bg-gradient-to-b from-[var(--background)] via-[color-mix(in_srgb,var(--background)_55%,transparent)] to-transparent"
+                aria-hidden
+            />
+            <div
+                className="pointer-events-none absolute inset-x-0 bottom-0 z-10 h-14 bg-gradient-to-t from-[var(--background)] via-[color-mix(in_srgb,var(--background)_50%,transparent)] to-transparent"
+                aria-hidden
+            />
+        </div>
+    );
+}
+
 const MOBILE_STRIP: Row[] = [
     {
         sender: "People Ops",

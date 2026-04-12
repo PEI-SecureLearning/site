@@ -7,10 +7,11 @@ import {
     useRef,
     useState,
     type AnimationEvent,
+    type CSSProperties,
 } from "react";
 import { createPortal } from "react-dom";
 import { gsap } from "gsap";
-import { F3GhostInboxMobileStrip, F3GhostInboxSidebar } from "./F3GhostInbox";
+import { F3GhostInboxMobilePanel, F3GhostInboxSidebar } from "./F3GhostInbox";
 import {
     F3_ACTION_SENTENCE,
     F3_CTA_LABEL,
@@ -117,6 +118,9 @@ const DETAILS_DURATION_MS = 900;
 const POST_DETAILS_PAUSE_MS = 700;
 const ACTION_DURATION_MS = 900;
 const CTA_DURATION_MS = 220;
+const MOBILE_INBOX_HOLD_MS = 860;
+const MOBILE_READER_LEAD_IN_MS = 160;
+const MOBILE_INBOX_EXIT_MS = 460;
 /**
  * Light throttle for keyboard / touch. Wheel uses gesture clustering instead (see handler).
  */
@@ -210,6 +214,26 @@ function usePrefersReducedMotion() {
     }, []);
 
     return prefersReducedMotion;
+}
+
+function useIsMobileViewport() {
+    const [isMobileViewport, setIsMobileViewport] = useState(false);
+
+    useEffect(() => {
+        if (globalThis.window === undefined || typeof globalThis.window.matchMedia !== "function") {
+            return;
+        }
+
+        const mediaQuery = globalThis.window.matchMedia("(max-width: 767px)");
+        const update = () => setIsMobileViewport(mediaQuery.matches);
+
+        update();
+        mediaQuery.addEventListener("change", update);
+
+        return () => mediaQuery.removeEventListener("change", update);
+    }, []);
+
+    return isMobileViewport;
 }
 
 function useTypedText(text: string, active: boolean, duration: number, skipAnimation: boolean) {
@@ -1074,6 +1098,7 @@ export default function F3PhishingEmail({
     forensicEditor,
 }: F3PhishingEmailProps) {
     const prefersReducedMotion = usePrefersReducedMotion();
+    const isMobileViewport = useIsMobileViewport();
     const ctaAnchorRef = useRef<HTMLDivElement>(null);
     const ctaButtonRef = useRef<HTMLButtonElement>(null);
     const clientSurfaceBoundsRef = useRef<HTMLDivElement>(null);
@@ -1120,6 +1145,10 @@ export default function F3PhishingEmail({
     const [arrowVisible, setArrowVisible] = useState(false);
     const [arrowCycle, setArrowCycle] = useState(0);
     const [breatheCta, setBreatheCta] = useState(false);
+    const [mobileReaderVisible, setMobileReaderVisible] = useState(true);
+    const [mobileInboxStage, setMobileInboxStage] = useState<"hidden" | "visible" | "exiting">(
+        "hidden"
+    );
     const [showConsequenceLayer, setShowConsequenceLayer] = useState(false);
     const [overscrollGlowPortalReady, setOverscrollGlowPortalReady] = useState(false);
     const [slabPortalReady, setSlabPortalReady] = useState(false);
@@ -1161,14 +1190,20 @@ export default function F3PhishingEmail({
               : undefined;
     const shouldSkipTypingAnimation =
         prefersReducedMotion || (hasLabRange && labRange.start !== "absolute-beginning") || manualMode;
+    const mobileInboxHoldMs =
+        isMobileViewport && !shouldSkipTypingAnimation ? MOBILE_INBOX_HOLD_MS : 0;
     const selectedRowStartMs = SHELL_START_MS + SHELL_DURATION_MS;
-    const metaStartMs = selectedRowStartMs + SELECTED_ROW_DURATION_MS;
+    const metaStartMs = selectedRowStartMs + SELECTED_ROW_DURATION_MS + mobileInboxHoldMs;
     const subjectStartMs = metaStartMs + META_DURATION_MS;
     const eventStartMs = subjectStartMs + SUBJECT_DURATION_MS + POST_SUBJECT_PAUSE_MS;
     const detailsStartMs = eventStartMs + EVENT_DURATION_MS + POST_EVENT_PAUSE_MS;
     const actionStartMs = detailsStartMs + DETAILS_DURATION_MS + POST_DETAILS_PAUSE_MS;
     const ctaStartMs = actionStartMs + ACTION_DURATION_MS;
     const readyStartMs = ctaStartMs + CTA_DURATION_MS;
+    const mobileReaderRevealMs = Math.max(
+        selectedRowStartMs,
+        metaStartMs - MOBILE_READER_LEAD_IN_MS
+    );
 
     const isStepEnabled = useCallback(
         (key: F3DebugStepKey) => {
@@ -1311,6 +1346,25 @@ export default function F3PhishingEmail({
         setSlabPortalReady(true);
     }, []);
 
+    useEffect(() => {
+        if (!isMobileViewport) {
+            setMobileReaderVisible(true);
+            setMobileInboxStage("hidden");
+            return;
+        }
+
+        if (prefersReducedMotion || manualMode || (hasLabRange && labRange.start !== "absolute-beginning")) {
+            setMobileReaderVisible(true);
+            setMobileInboxStage("hidden");
+            return;
+        }
+
+        if (!hasStartedRef.current) {
+            setMobileReaderVisible(false);
+            setMobileInboxStage("hidden");
+        }
+    }, [hasLabRange, isMobileViewport, labRange, manualMode, prefersReducedMotion]);
+
     useLayoutEffect(() => {
         const boundsEl = clientSurfaceBoundsRef.current;
         const rightEdgeEl = clientSurfaceRightEdgeRef.current;
@@ -1374,11 +1428,17 @@ export default function F3PhishingEmail({
         if (!hasLabRange || labStartAppliedRef.current) return;
 
         if (labRange.start === "absolute-beginning") {
+            if (isMobileViewport && !prefersReducedMotion && !manualMode) {
+                setMobileReaderVisible(false);
+                setMobileInboxStage("hidden");
+            }
             labStartAppliedRef.current = true;
             return;
         }
 
         hasStartedRef.current = true;
+        setMobileReaderVisible(true);
+        setMobileInboxStage("hidden");
         setTakeoverVisible(true);
         setShellVisible(true);
         setSelectedActive(true);
@@ -1405,16 +1465,19 @@ export default function F3PhishingEmail({
         }
 
         labStartAppliedRef.current = true;
-    }, [hasLabRange, labRange]);
+    }, [hasLabRange, isMobileViewport, labRange, manualMode, prefersReducedMotion]);
 
     useEffect(() => {
         if (!isSceneActive || hasReleased || hasStartedRef.current) return;
 
         hasStartedRef.current = true;
         setTakeoverVisible(isStepEnabled("takeoverVisible"));
+        setMobileInboxStage("hidden");
+        setMobileReaderVisible(!isMobileViewport);
 
         if (prefersReducedMotion) {
             setPhase("ready");
+            setMobileReaderVisible(true);
             setShellVisible(isStepEnabled("shellVisible"));
             setSelectedActive(isStepEnabled("selectedActive"));
             setMetaVisible(isStepEnabled("metaVisible"));
@@ -1431,7 +1494,17 @@ export default function F3PhishingEmail({
         schedule(SHELL_START_MS, () => {
             setPhase("composing");
             setShellVisible(isStepEnabled("shellVisible"));
+            if (isMobileViewport) {
+                setMobileInboxStage("visible");
+            }
         });
+        if (isMobileViewport) {
+            schedule(mobileReaderRevealMs, () => {
+                setMobileReaderVisible(true);
+                setMobileInboxStage("exiting");
+                schedule(MOBILE_INBOX_EXIT_MS, () => setMobileInboxStage("hidden"));
+            });
+        }
         schedule(selectedRowStartMs, () => setSelectedActive(isStepEnabled("selectedActive")));
         schedule(metaStartMs, () => setMetaVisible(isStepEnabled("metaVisible")));
         schedule(subjectStartMs, () => setSubjectActive(isStepEnabled("subjectActive")));
@@ -1448,7 +1521,9 @@ export default function F3PhishingEmail({
     }, [
         hasReleased,
         isSceneActive,
+        isMobileViewport,
         isStepEnabled,
+        mobileReaderRevealMs,
         prefersReducedMotion,
         readyStartMs,
         runCtaBreathe,
@@ -2139,6 +2214,26 @@ export default function F3PhishingEmail({
         setBreatheCta(false);
         onReviewActivity?.();
     };
+
+    useEffect(() => {
+        if (!isMobileViewport) return;
+
+        if (
+            resolvedPhase === "ready" ||
+            resolvedPhase === "consequence" ||
+            resolvedPhase === "remediationSlab" ||
+            resolvedPhase === "remediationDocked" ||
+            resolvedPhase === "remediationTransforming" ||
+            resolvedPhase === "remediationTransformed" ||
+            resolvedPhase === "remediation" ||
+            resolvedPhase === "remediationSettled" ||
+            resolvedPhase === "sequenceComplete"
+        ) {
+            setMobileReaderVisible(true);
+            setMobileInboxStage("hidden");
+        }
+    }, [isMobileViewport, resolvedPhase]);
+
     const resolvedTakeoverVisible = manualMode
         ? debugOverrides?.takeoverVisible ?? takeoverVisible
         : takeoverVisible;
@@ -2180,6 +2275,37 @@ export default function F3PhishingEmail({
         resolvedPhase === "remediationSettled" ||
         resolvedPhase === "sequenceComplete";
     const showRemediationUi = false;
+    const mobileInboxPanelStyle: CSSProperties =
+        mobileInboxStage === "visible"
+            ? {
+                  opacity: 1,
+                  transform: "translateX(0%) scale(1)",
+                  clipPath: "inset(0 0 0 0 round 22px)",
+              }
+            : mobileInboxStage === "exiting"
+              ? {
+                    opacity: 0,
+                    transform: "translateX(-16%) scale(0.985)",
+                    clipPath: "inset(0 84% 0 0 round 22px)",
+                }
+              : {
+                    opacity: 0,
+                    transform: "translateX(-20%) scale(0.975)",
+                    clipPath: "inset(0 100% 0 0 round 22px)",
+                };
+    const mobileReaderSurfaceStyle: CSSProperties | undefined = isMobileViewport
+        ? mobileReaderVisible
+            ? {
+                  opacity: 1,
+                  transform: "translateX(0px) scale(1)",
+                  filter: "blur(0px)",
+              }
+            : {
+                  opacity: 0,
+                  transform: "translateX(28px) scale(0.985)",
+                  filter: "blur(10px)",
+              }
+        : undefined;
     const remediationPanelVisibleAnnotationKeys = [
         "sender-domain",
         "pressure",
@@ -2209,16 +2335,30 @@ export default function F3PhishingEmail({
                             ref={clientSurfaceBoundsRef}
                             className="relative mx-auto flex min-h-0 w-full max-w-[min(100%,72rem)] flex-1 flex-col"
                         >
-                        {/* Mobile: hint of a list above the reading pane */}
-                        <div className="f3-divider relative mb-6 border-b pb-2 md:mb-0 md:hidden">
-                            <F3GhostInboxMobileStrip
-                                shellVisible={resolvedShellVisible}
-                                selectedActive={resolvedSelectedActive}
-                                dockTargetId="f3-remediation-dock-target-mobile"
-                            />
-                        </div>
-
                         <div className="flex min-h-0 w-full flex-1 flex-col md:flex-row md:items-stretch">
+                        <div
+                            id="f3-remediation-dock-target-mobile"
+                            className="pointer-events-none absolute left-[0.85rem] top-[0.9rem] z-[12] hidden h-[3.25rem] w-[3.25rem] opacity-0 md:hidden"
+                            aria-hidden
+                        />
+                        <div
+                            className="pointer-events-none absolute inset-0 z-[12] hidden md:hidden"
+                            style={{
+                                display: isMobileViewport ? "block" : "none",
+                            }}
+                            aria-hidden
+                        >
+                            <div
+                                className="f3-shell-surface f3-divider relative flex h-full min-h-0 flex-col overflow-hidden bg-[var(--background)] shadow-[0_28px_80px_rgba(0,0,0,0.42)] transition-[opacity,transform,clip-path] duration-[620ms] ease-[cubic-bezier(0.22,1,0.36,1)]"
+                                data-shell-visible={resolvedShellVisible}
+                                style={mobileInboxPanelStyle}
+                            >
+                                <F3GhostInboxMobilePanel
+                                    shellVisible={resolvedShellVisible}
+                                    selectedActive={resolvedSelectedActive}
+                                />
+                            </div>
+                        </div>
                         {/* Ghost inbox — narrow pane, recedes vs reading area (directions.md) */}
                         <aside
                             className="f3-shell-surface f3-divider relative z-0 hidden min-h-0 shrink-0 flex-col border-r md:flex md:w-[248px] md:min-w-[220px] md:max-w-[260px]"
@@ -2235,10 +2375,11 @@ export default function F3PhishingEmail({
                         {/* Reading pane: continuous with app chrome; message left-anchored like a real reader */}
                         <article
                             ref={clientSurfaceRightEdgeRef}
-                            className="f3-shell-surface f3-divider relative z-[5] flex min-w-0 flex-1 flex-col overflow-visible border-l bg-[var(--background)] md:border-l-0"
+                            className="f3-shell-surface f3-divider relative z-[5] flex min-w-0 flex-1 flex-col overflow-visible border-l bg-[var(--background)] transition-[opacity,transform,filter] duration-[620ms] ease-[cubic-bezier(0.22,1,0.36,1)] md:border-l-0"
                             data-shell-visible={resolvedShellVisible}
                             data-f3-remediation={showTransformedSurface || showRemediationUi ? "true" : "false"}
                             aria-label="Demonstration: simulated security alert email, as in a phishing attempt"
+                            style={mobileReaderSurfaceStyle}
                         >
                             <div className="shrink-0 px-3 pt-0.5 pb-0 md:px-5 lg:px-6">
                                 <F3MailReaderChrome />

@@ -23,10 +23,27 @@ export default function F3StateOneScene({
     forensicEditor,
 }: F3StateOneSceneProps) {
     const sceneRef = useRef<HTMLDivElement>(null);
+    const stageRef = useRef<HTMLDivElement>(null);
     const [isSceneActive, setIsSceneActive] = useState(false);
     const [hasReleased, setHasReleased] = useState(false);
+    const [isMobileViewport, setIsMobileViewport] = useState(false);
     const [releasedScrollOffset, setReleasedScrollOffset] = useState(0);
     const [releasedSceneHeight, setReleasedSceneHeight] = useState<number | null>(null);
+    const [releasedStageHeight, setReleasedStageHeight] = useState<number | null>(null);
+
+    useEffect(() => {
+        if (globalThis.window === undefined || typeof globalThis.window.matchMedia !== "function") {
+            return;
+        }
+
+        const mediaQuery = globalThis.window.matchMedia("(max-width: 767px)");
+        const update = () => setIsMobileViewport(mediaQuery.matches);
+
+        update();
+        mediaQuery.addEventListener("change", update);
+
+        return () => mediaQuery.removeEventListener("change", update);
+    }, []);
 
     useEffect(() => {
         const scene = sceneRef.current;
@@ -53,6 +70,7 @@ export default function F3StateOneScene({
 
     const handleSequenceRelease = useCallback(() => {
         const scene = sceneRef.current;
+        const stage = stageRef.current;
         if (scene) {
             const sceneTop = scene.getBoundingClientRect().top + globalThis.window.scrollY;
             const maxStickyOffset = Math.max(0, scene.offsetHeight - globalThis.window.innerHeight);
@@ -60,12 +78,17 @@ export default function F3StateOneScene({
                 Math.max(0, globalThis.window.scrollY - sceneTop),
                 maxStickyOffset
             );
+            const measuredStageHeight =
+                stage?.getBoundingClientRect().height ?? globalThis.window.innerHeight;
+            const resolvedReleaseHeight =
+                isMobileViewport ? measuredStageHeight : globalThis.window.innerHeight;
 
             setReleasedScrollOffset(stickyOffset);
-            setReleasedSceneHeight(globalThis.window.innerHeight + stickyOffset);
+            setReleasedSceneHeight(resolvedReleaseHeight + stickyOffset);
+            setReleasedStageHeight(resolvedReleaseHeight);
         }
         setHasReleased(true);
-    }, []);
+    }, [isMobileViewport]);
 
     const tallRunwayClass = sceneHeightClassName ?? "h-[220vh]";
     const sceneLayoutClass = hasReleased
@@ -79,13 +102,24 @@ export default function F3StateOneScene({
             ? { height: `${releasedSceneHeight}px` }
             : undefined;
     const releasedStageStyle =
-        hasReleased && releasedScrollOffset > 0
-            ? { transform: `translateY(${releasedScrollOffset}px)` }
+        hasReleased
+            ? {
+                  ...(releasedScrollOffset > 0
+                      ? { transform: `translateY(${releasedScrollOffset}px)` }
+                      : {}),
+                  ...(isMobileViewport && releasedStageHeight != null
+                      ? {
+                            height: `${releasedStageHeight}px`,
+                            minHeight: `${releasedStageHeight}px`,
+                        }
+                      : {}),
+              }
             : undefined;
 
     return (
         <div ref={sceneRef} className={sceneLayoutClass} style={releasedSceneStyle}>
             <div
+                ref={stageRef}
                 className={`${stageLayoutClass} bg-[var(--background)]`}
                 style={releasedStageStyle}
             >

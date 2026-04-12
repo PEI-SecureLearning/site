@@ -195,6 +195,7 @@ const REMEDIATION_RESKIN_START_DELAY_MS = 0;
 const REMEDIATION_RESKIN_DEBUG_SLOW_MULTIPLIER = 2.8;
 const REMEDIATION_POST_TRANSFORM_SETTLE_MS = 1200;
 const REMEDIATION_ANNOTATION_PAIR_PAUSE_MS = 560;
+const MOBILE_REMEDIATION_ANNOTATION_PAIR_PAUSE_MS = 720;
 
 function usePrefersReducedMotion() {
     const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
@@ -508,6 +509,8 @@ function F3ReskinnedMailContent({
     onAnimatedAnnotationComplete,
     forensicLayouts,
     forensicEditor,
+    phase,
+    guidedMobile = false,
 }: Readonly<{
     annotationsActive?: boolean;
     visibleAnnotationKeys?: readonly F3ForensicTargetKey[];
@@ -515,14 +518,23 @@ function F3ReskinnedMailContent({
     onAnimatedAnnotationComplete?: (key: F3ForensicTargetKey) => void;
     forensicLayouts?: F3ForensicLayoutSet;
     forensicEditor?: F3ForensicOverlayEditor;
+    phase: Extract<
+        F3Phase,
+        | "remediationTransforming"
+        | "remediationTransformed"
+        | "remediation"
+        | "remediationSettled"
+        | "sequenceComplete"
+    >;
+    guidedMobile?: boolean;
 }>) {
     return (
-        <div className="absolute inset-0 overflow-hidden rounded-[22px]">
+        <div className={`absolute inset-0 overflow-hidden rounded-[22px] ${guidedMobile ? "flex flex-col" : ""}`}>
             <div className="shrink-0 px-3 pt-0.5 pb-0 opacity-0 md:px-5 lg:px-6" aria-hidden>
                 <F3MailReaderChrome />
             </div>
 
-            <div className="relative min-h-0 min-w-0 flex-1 overflow-visible px-3 pb-8 pt-5 md:px-5 md:pb-10 md:pt-6 lg:px-6">
+            <div className={`relative min-h-0 min-w-0 flex-1 overflow-visible px-3 pt-5 md:px-5 md:pb-10 md:pt-6 lg:px-6 ${guidedMobile ? "pb-3" : "pb-8"}`}>
                 <F3RemediationReaderPanel
                     annotationsActive={annotationsActive}
                     visibleAnnotationKeys={visibleAnnotationKeys}
@@ -530,6 +542,8 @@ function F3ReskinnedMailContent({
                     onAnimatedAnnotationComplete={onAnimatedAnnotationComplete}
                     forensicLayouts={forensicLayouts}
                     forensicEditor={forensicEditor}
+                    phase={phase}
+                    guidedMobile={guidedMobile}
                 />
             </div>
         </div>
@@ -547,6 +561,7 @@ function F3ClientReskinOverlay({
     sourceOrigin,
     forensicLayouts,
     forensicEditor,
+    guidedMobile = false,
 }: Readonly<{
     phase: Extract<
         F3Phase,
@@ -565,6 +580,7 @@ function F3ClientReskinOverlay({
     sourceOrigin: Readonly<{ x: number; y: number }>;
     forensicLayouts?: F3ForensicLayoutSet;
     forensicEditor?: F3ForensicOverlayEditor;
+    guidedMobile?: boolean;
 }>) {
     const rootRef = useRef<HTMLDivElement>(null);
     const panelRef = useRef<HTMLDivElement>(null);
@@ -1004,6 +1020,7 @@ function F3ClientReskinOverlay({
                     }}
                 />
                 <F3ReskinnedMailContent
+                    phase={phase}
                     annotationsActive={
                         phase === "remediation" ||
                         phase === "remediationSettled" ||
@@ -1014,6 +1031,7 @@ function F3ClientReskinOverlay({
                     onAnimatedAnnotationComplete={onAnimatedAnnotationComplete}
                     forensicLayouts={forensicLayouts}
                     forensicEditor={forensicEditor}
+                    guidedMobile={guidedMobile}
                 />
             </div>
             <div
@@ -1790,6 +1808,9 @@ export default function F3PhishingEmail({
         onSequenceRelease?.();
         setPhase("sequenceComplete");
     }, [onSequenceRelease]);
+    const remediationAnnotationPauseMs = isMobileViewport
+        ? MOBILE_REMEDIATION_ANNOTATION_PAIR_PAUSE_MS
+        : REMEDIATION_ANNOTATION_PAIR_PAUSE_MS;
 
     useEffect(() => {
         if (manualMode || hasReleased) return;
@@ -1801,7 +1822,7 @@ export default function F3PhishingEmail({
     const handleAnimatedAnnotationComplete = useCallback((key: F3ForensicTargetKey) => {
         if (key === "sender-domain") {
             setAnimatedAnnotationKey(undefined);
-            schedule(REMEDIATION_ANNOTATION_PAIR_PAUSE_MS, () => {
+            schedule(remediationAnnotationPauseMs, () => {
                 setVisibleAnnotationKeys(["sender-domain", "pressure"]);
                 setAnimatedAnnotationKey("pressure");
             });
@@ -1810,7 +1831,7 @@ export default function F3PhishingEmail({
 
         if (key === "pressure") {
             setAnimatedAnnotationKey(undefined);
-            schedule(REMEDIATION_ANNOTATION_PAIR_PAUSE_MS, () => {
+            schedule(remediationAnnotationPauseMs, () => {
                 setVisibleAnnotationKeys(["sender-domain", "pressure", "cta"]);
                 setAnimatedAnnotationKey("cta");
             });
@@ -1819,11 +1840,11 @@ export default function F3PhishingEmail({
 
         if (key === "cta") {
             setAnimatedAnnotationKey(undefined);
-            schedule(REMEDIATION_ANNOTATION_PAIR_PAUSE_MS, () => {
+            schedule(remediationAnnotationPauseMs, () => {
                 setPhase((current) => (current === "remediation" ? "remediationSettled" : current));
             });
         }
-    }, [schedule]);
+    }, [remediationAnnotationPauseMs, schedule]);
 
     useLayoutEffect(() => {
         if (resolvedPhase !== "remediation") return;
@@ -2610,6 +2631,7 @@ export default function F3PhishingEmail({
                                 sourceOrigin={clientSurfaceSourceOrigin}
                                 forensicLayouts={forensicLayouts}
                                 forensicEditor={forensicEditor}
+                                guidedMobile={isMobileViewport}
                             />
                         ) : null}
                         </div>

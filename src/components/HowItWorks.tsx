@@ -109,6 +109,9 @@ const ACTIVE_CARD_RADIUS_PX = 48;
 const FLIP_DURATION_S = 0.78;
 /** Constant rate — no ease-in/out slowdown at the end. */
 const FLIP_EASE = "none";
+const HORIZONTAL_INACTIVE_STEP_SIZE_PX = 36;
+const HORIZONTAL_CONNECTOR_WIDTH_PX = 16;
+const HORIZONTAL_ACTIVE_CARD_PADDING_X_PX = 32;
 /**
  * Stage media for the committed step only (`activeIndex`). When you add `<video>` per step, keep
  * `activeIndex` as the committed index; on `timeupdate`, report normalized progress (0–1) to the
@@ -466,6 +469,307 @@ function ActiveCardBorder({
     );
 }
 
+const HORIZONTAL_CARD_RADIUS_PX = 28;
+
+function HorizontalCardBorder({
+    progressKey,
+    outlineProgress01,
+}: Readonly<{ progressKey: number; outlineProgress01: number }>) {
+    const frameRef = useRef<HTMLDivElement | null>(null);
+    const [size, setSize] = useState({ width: 0, height: 0 });
+
+    useLayoutEffect(() => {
+        const frame = frameRef.current;
+        if (!frame) return;
+
+        let rafId = 0;
+        let stopLiveSamplingAt = 0;
+
+        const updateSize = () => {
+            const rect = frame.getBoundingClientRect();
+            const w = Math.max(rect.width, frame.clientWidth);
+            const h = Math.max(rect.height, frame.clientHeight);
+            setSize((cur) =>
+                Math.abs(cur.width - w) < 0.25 && Math.abs(cur.height - h) < 0.25
+                    ? cur
+                    : { width: w, height: h }
+            );
+        };
+
+        const tick = () => {
+            updateSize();
+            if (performance.now() < stopLiveSamplingAt) {
+                rafId = window.requestAnimationFrame(tick);
+            }
+        };
+
+        updateSize();
+        stopLiveSamplingAt = performance.now() + FLIP_DURATION_S * 1000 + 120;
+        rafId = window.requestAnimationFrame(tick);
+
+        if (typeof ResizeObserver === "undefined") {
+            return () => window.cancelAnimationFrame(rafId);
+        }
+
+        const obs = new ResizeObserver(() => updateSize());
+        obs.observe(frame);
+
+        return () => {
+            window.cancelAnimationFrame(rafId);
+            obs.disconnect();
+        };
+    }, [progressKey]);
+
+    const inset = 1;
+    const strokeWidth = 2;
+    const x = inset;
+    const y = inset;
+    const w = Math.max(size.width - inset * 2, 0);
+    const h = Math.max(size.height - inset * 2, 0);
+    const r = Math.max(0, Math.min(HORIZONTAL_CARD_RADIUS_PX, w / 2, h / 2));
+    const centerY = y + h / 2;
+    const rightX = x + w;
+    const bottomY = y + h;
+
+    const topPath = `M ${x} ${centerY} V ${y + r} A ${r} ${r} 0 0 1 ${x + r} ${y} H ${rightX - r} A ${r} ${r} 0 0 1 ${rightX} ${y + r} V ${centerY}`;
+    const bottomPath = `M ${x} ${centerY} V ${bottomY - r} A ${r} ${r} 0 0 0 ${x + r} ${bottomY} H ${rightX - r} A ${r} ${r} 0 0 0 ${rightX} ${bottomY - r} V ${centerY}`;
+    const dashOffset = 100 * (1 - outlineProgress01);
+
+    return (
+        <div
+            ref={frameRef}
+            key={`h-progress-${progressKey}`}
+            className="absolute inset-0 rounded-[inherit] pointer-events-none z-20"
+        >
+            {w > 0 && h > 0 && (
+                <svg
+                    className="absolute inset-0 h-full w-full"
+                    viewBox={`0 0 ${size.width} ${size.height}`}
+                    preserveAspectRatio="none"
+                    aria-hidden="true"
+                >
+                    <path d={topPath} pathLength="100" fill="none" stroke="#a78bfa" strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" style={{ filter: "drop-shadow(0 0 6px rgba(167,139,250,0.95))", strokeDasharray: 100, strokeDashoffset: dashOffset }} />
+                    <path d={bottomPath} pathLength="100" fill="none" stroke="#a78bfa" strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" style={{ filter: "drop-shadow(0 0 6px rgba(167,139,250,0.95))", strokeDasharray: 100, strokeDashoffset: dashOffset }} />
+                </svg>
+            )}
+        </div>
+    );
+}
+
+function HorizontalTimeline({
+    activeIndex,
+    cardOutlineProgress01,
+    connectorFillPercents,
+    idBase,
+    tabRefs,
+    onSelectStep,
+    onTabKeyDown,
+    progressKey,
+}: Readonly<{
+    activeIndex: number;
+    cardOutlineProgress01: number;
+    connectorFillPercents: readonly number[];
+    idBase: string;
+    tabRefs: MutableRefObject<Array<HTMLButtonElement | null>>;
+    onSelectStep: (index: number) => void;
+    onTabKeyDown: (event: KeyboardEvent<HTMLButtonElement>, index: number) => void;
+    progressKey: number;
+}>) {
+    const tablistRef = useRef<HTMLDivElement | null>(null);
+    const measureRefs = useRef<Array<HTMLDivElement | null>>([]);
+    const [activeBodyWidth, setActiveBodyWidth] = useState<number | null>(null);
+    const [reservedHeight, setReservedHeight] = useState<number | null>(null);
+
+    useLayoutEffect(() => {
+        const tablist = tablistRef.current;
+        if (!tablist) return;
+
+        const updateWidth = () => {
+            const occupiedWidth =
+                (STEPS.length - 1) * HORIZONTAL_INACTIVE_STEP_SIZE_PX +
+                (STEPS.length - 1) * HORIZONTAL_CONNECTOR_WIDTH_PX;
+            const nextWidth = Math.max(
+                tablist.clientWidth - occupiedWidth - HORIZONTAL_ACTIVE_CARD_PADDING_X_PX,
+                0
+            );
+
+            setActiveBodyWidth((current) => (current === nextWidth ? current : nextWidth));
+        };
+
+        updateWidth();
+
+        if (typeof ResizeObserver === "undefined") return;
+
+        const observer = new ResizeObserver(() => updateWidth());
+        observer.observe(tablist);
+
+        return () => observer.disconnect();
+    }, []);
+
+    useLayoutEffect(() => {
+        if (!activeBodyWidth) return;
+
+        const frame = window.requestAnimationFrame(() => {
+            const maxHeight = measureRefs.current.reduce((currentMax, element) => {
+                if (!element) return currentMax;
+                return Math.max(currentMax, element.offsetHeight);
+            }, 0);
+
+            setReservedHeight((current) => (current === maxHeight ? current : maxHeight));
+        });
+
+        return () => window.cancelAnimationFrame(frame);
+    }, [activeBodyWidth]);
+
+    return (
+        <div
+            className="relative w-full mt-6 overflow-hidden"
+            style={reservedHeight ? { height: `${reservedHeight}px` } : undefined}
+        >
+            <div
+                ref={tablistRef}
+                role="tablist"
+                aria-orientation="horizontal"
+                aria-label="How SecureLearning works timeline"
+                className="flex h-full w-full flex-row items-start"
+            >
+                {STEPS.map((step, index) => {
+                    const isActive = index === activeIndex;
+                    const isPast = index < activeIndex;
+
+                    return (
+                        <Fragment key={step.id}>
+                            <button
+                                ref={(button) => {
+                                    tabRefs.current[index] = button;
+                                }}
+                                id={`${idBase}-htab-${step.id}`}
+                                type="button"
+                                role="tab"
+                                aria-selected={isActive}
+                                aria-controls={`${idBase}-panel-${step.id}`}
+                                aria-label={step.title}
+                                tabIndex={isActive ? 0 : -1}
+                                onClick={() => onSelectStep(index)}
+                                onKeyDown={(event) => onTabKeyDown(event, index)}
+                                className={`
+                                    group relative focus-visible:outline-none z-10
+                                    ${isActive
+                                        ? 'hiw-active-card-h overflow-visible flex flex-1 flex-col items-center justify-center rounded-[28px] bg-[#0d071b] px-4 py-4 h-auto'
+                                        : 'overflow-hidden flex h-[36px] w-[36px] shrink-0 self-center items-center justify-center rounded-[999px] bg-[#05060b]'
+                                    }
+                                    ${!isActive && isPast ? 'shadow-[0_0_24px_rgba(167,139,250,0.25)]' : ''}
+                                    ${!isActive && !isPast ? 'hover:bg-white/[0.05]' : ''}
+                                `}
+                            >
+                                <div
+                                    className={`
+                                        absolute inset-0 rounded-[inherit] pointer-events-none z-0
+                                        ${isActive
+                                            ? ''
+                                            : isPast
+                                                ? 'shadow-[inset_0_0_0_1.5px_#a78bfa]'
+                                                : 'shadow-[inset_0_0_0_1.5px_rgba(255,255,255,0.15)]'}
+                                    `}
+                                />
+
+                                {isActive && (
+                                    <HorizontalCardBorder progressKey={progressKey} outlineProgress01={cardOutlineProgress01} />
+                                )}
+
+                                {isActive ? (
+                                    <>
+                                        <div
+                                            aria-hidden="true"
+                                            className="invisible relative z-10 mx-auto flex flex-col items-center text-center"
+                                            style={{ width: activeBodyWidth ? `${activeBodyWidth}px` : undefined }}
+                                        >
+                                            <span className="text-[0.6rem] font-bold tracking-widest text-white/25 mb-1">{step.number}</span>
+                                            <h3 className="text-[0.92rem] font-bold leading-snug tracking-tight text-white">{step.title}</h3>
+                                            <p className="mt-1 text-[0.68rem] font-medium leading-relaxed text-white/40">{step.captionLines[0]} {step.captionLines[1]}</p>
+                                        </div>
+                                        <div className="pointer-events-none absolute inset-0 z-10 overflow-hidden rounded-[inherit]">
+                                            <div
+                                                className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2"
+                                                style={{ width: activeBodyWidth ? `${activeBodyWidth}px` : undefined }}
+                                            >
+                                                <div className="flex flex-col items-center text-center">
+                                                    <span className="text-[0.6rem] font-bold tracking-widest text-white/25 mb-1">{step.number}</span>
+                                                    <h3 className="text-[0.92rem] font-bold leading-snug tracking-tight text-white">{step.title}</h3>
+                                                    <p className="mt-1 text-[0.68rem] font-medium leading-relaxed text-white/40">{step.captionLines[0]} {step.captionLines[1]}</p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </>
+                                ) : (
+                                    <span
+                                        className={`relative z-10 font-bold tracking-widest text-[0.8rem] ${
+                                            isPast ? 'text-white/90' : 'text-white/40'
+                                        }`}
+                                    >
+                                        {step.number}
+                                    </span>
+                                )}
+                            </button>
+
+                            {index !== STEPS.length - 1 && (
+                                <div
+                                    className="relative h-[2px] w-4 shrink-0 self-center"
+                                    aria-hidden="true"
+                                >
+                                    <div className="absolute inset-0 bg-white/[0.09]" />
+                                    {(isPast || isActive) && (
+                                        <div
+                                            className="absolute inset-y-0 left-0 origin-left bg-[#a78bfa]"
+                                            style={{
+                                                width: `${connectorFillPercents[index] ?? 0}%`,
+                                            }}
+                                        />
+                                    )}
+                                </div>
+                            )}
+                        </Fragment>
+                    );
+                })}
+            </div>
+            <div className="pointer-events-none absolute left-0 top-0 -z-10 opacity-0" aria-hidden="true">
+                {STEPS.map((step, index) => (
+                    <div
+                        key={`${step.id}-measure`}
+                        ref={(element) => {
+                            measureRefs.current[index] = element;
+                        }}
+                        className="hiw-active-card-h flex flex-col items-center justify-center rounded-[28px] px-4 py-4"
+                        style={{
+                            position: "absolute",
+                            left: 0,
+                            top: 0,
+                            width: activeBodyWidth
+                                ? `${activeBodyWidth + HORIZONTAL_ACTIVE_CARD_PADDING_X_PX}px`
+                                : undefined,
+                        }}
+                    >
+                        <div className="flex flex-col items-center text-center">
+                            <span className="text-[0.6rem] font-bold tracking-widest text-white/25 mb-1">{step.number}</span>
+                            <h3 className="text-[0.92rem] font-bold leading-snug tracking-tight text-white">{step.title}</h3>
+                            <p className="mt-1 text-[0.68rem] font-medium leading-relaxed text-white/40">{step.captionLines[0]} {step.captionLines[1]}</p>
+                        </div>
+                    </div>
+                ))}
+            </div>
+            <style jsx>{`
+                .hiw-active-card-h {
+                    box-shadow:
+                        0 -8px 24px -12px rgba(167, 139, 250, 0.2),
+                        0 32px 60px rgba(0, 0, 0, 0.5),
+                        0 0 0 1.5px rgba(255, 255, 255, 0.04),
+                        inset 0 0 24px rgba(167, 139, 250, 0.10);
+                }
+            `}</style>
+        </div>
+    );
+}
+
 function captureTimelineFlipState(
     tabRefs: MutableRefObject<Array<HTMLButtonElement | null>>,
     flipStateBeforeRef: MutableRefObject<Flip.FlipState | null>
@@ -480,6 +784,7 @@ function captureTimelineFlipState(
 export default function HowItWorks() {
     const sectionRef = useRef<HTMLElement | null>(null);
     const tabRefs = useRef<Array<HTMLButtonElement | null>>([]);
+    const mobileTabRefs = useRef<Array<HTMLButtonElement | null>>([]);
     const itemRefs = useRef<Array<HTMLDivElement | null>>([]);
     const sentenceRef = useRef<HTMLParagraphElement | null>(null);
     const contentGridRef = useRef<HTMLDivElement | null>(null);
@@ -527,6 +832,9 @@ export default function HowItWorks() {
     /** True once the content grid has fully faded in after the intro. */
     const contentReadyRef = useRef(false);
 
+    const isMobileRef = useRef(false);
+    const [isMobile, setIsMobile] = useState(false);
+
     activeIndexRef.current = activeIndex;
 
     /**
@@ -551,54 +859,63 @@ export default function HowItWorks() {
      */
     const updateIntroVisuals = useCallback((sf: number) => {
         const introF = Math.max(0, Math.min(1, sf + 1));
+        const isMobileLayout = isMobileRef.current;
 
-        // --- Wrapper translation ---
-        // Pre-shifted MORE than the opacity (1.35 vs 1.25) so the wrapper
-        // begins moving while the sentence is still invisible — the hard start
-        // from the clamping corner is hidden in the dark.
         const wrapper = introWrapperRef.current;
         if (wrapper) {
-            const wf = sf + 1.35;
+            const wf = isMobileLayout ? sf + 1.22 : sf + 1.35;
             let travel: number;
             if (wf < 0) {
-                travel = 10;                                     // before everything
-            } else if (wf < 0.35) {
-                travel = 10 * (1 - wf / 0.35);                  // settle
-            } else if (wf < 0.75) {
-                travel = 0;                                      // dock
+                travel = 10;
+            } else if (wf < (isMobileLayout ? 0.3 : 0.35)) {
+                const settleWindow = isMobileLayout ? 0.3 : 0.35;
+                travel = 10 * (1 - wf / settleWindow);
+            } else if (wf < (isMobileLayout ? 0.5 : 0.75)) {
+                travel = 0;
             } else {
-                const wipeF = Math.min(1, (wf - 0.75) / 0.6);   // wipe
-                travel = -70 * wipeF;
+                const wipeF = isMobileLayout
+                    ? Math.min(1, (wf - 0.5) / 0.5)
+                    : Math.min(1, (wf - 0.75) / 0.6);
+                travel = (isMobileLayout ? -38 : -70) * wipeF;
             }
             wrapper.style.transform = `translateY(${travel}vh)`;
         }
 
-        // --- Sentence opacity + blur (pre-shifted so it appears a touch earlier) ---
         const sentence = sentenceRef.current;
         if (sentence) {
-            const sp = sf + 1.25; // starts ~25vh before the main intro phase
-            let op: number;
-            if (sp < 0) op = 0;
-            else if (sp < 0.35) op = sp / 0.35;                // gradual fade in
-            else if (sp < 0.5) op = 1;                          // hold during dock
-            else if (sp < 0.8) op = 1 - (sp - 0.5) / 0.3;      // fade out during wipe
-            else op = 0;
-            const blur = sp > 0.55 ? ((sp - 0.55) / 0.45) * 8 : 0;
+            const sp = isMobileLayout ? sf + 1.18 : sf + 1.25;
 
-            sentence.style.opacity = String(Math.max(0, Math.min(1, op)));
-            sentence.style.filter = blur > 0.1 ? `blur(${blur}px)` : "none";
+            if (isMobileLayout) {
+                const op = sp < 0 ? 0 : sp < 0.32 ? sp / 0.32 : 1;
+                sentence.style.opacity = String(Math.max(0, Math.min(1, op)));
+                sentence.style.filter = "none";
+            } else {
+                let op: number;
+                if (sp < 0) op = 0;
+                else if (sp < 0.35) op = sp / 0.35;
+                else if (sp < 0.5) op = 1;
+                else if (sp < 0.8) op = 1 - (sp - 0.5) / 0.3;
+                else op = 0;
+                const blur = sp > 0.55 ? ((sp - 0.55) / 0.45) * 8 : 0;
+
+                sentence.style.opacity = String(Math.max(0, Math.min(1, op)));
+                sentence.style.filter = blur > 0.1 ? `blur(${blur}px)` : "none";
+            }
         }
 
-        // --- Content grid opacity ---
         const grid = contentGridRef.current;
         if (grid) {
-            const contentF = Math.max(0, Math.min(1, (introF - 0.45) / 0.4)); // 0.45→0.85
+            const contentF = isMobileLayout
+                ? Math.max(0, Math.min(1, (introF - 0.18) / 0.46))
+                : Math.max(0, Math.min(1, (introF - 0.45) / 0.4));
             grid.style.opacity = String(contentF);
+            grid.style.transform = isMobileLayout
+                ? `translateY(${(1 - contentF) * 2.5}vh)`
+                : "translateY(0)";
 
-            // Gate autoplay: content is "ready" once fully opaque
             if (contentF >= 0.98 && !contentReadyRef.current) {
                 contentReadyRef.current = true;
-                stepClockStartRef.current = performance.now(); // fresh timer
+                stepClockStartRef.current = performance.now();
             }
         }
     }, []);
@@ -607,7 +924,8 @@ export default function HowItWorks() {
         if (nextIndex === activeIndexRef.current) return;
         activeIndexRef.current = nextIndex;
         stepClockStartRef.current = performance.now();
-        captureTimelineFlipState(tabRefs, flipStateBeforeRef);
+        const refs = isMobileRef.current ? mobileTabRefs : tabRefs;
+        captureTimelineFlipState(refs, flipStateBeforeRef);
         setActiveIndex(nextIndex);
         setProgressKey((k) => k + 1);
     }, []);
@@ -697,7 +1015,6 @@ export default function HowItWorks() {
                 duration: FLIP_DURATION_S,
                 ease: FLIP_EASE,
                 nested: false,
-                absolute: false,
                 scale: false,
             });
         });
@@ -716,6 +1033,20 @@ export default function HowItWorks() {
     useLayoutEffect(() => {
         if (typeof window === "undefined") return;
         reduceMotionRef.current = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    }, []);
+
+    useLayoutEffect(() => {
+        if (typeof window === "undefined") return;
+        const mql = window.matchMedia("(max-width: 1023px)");
+        const update = () => {
+            const mobile = mql.matches;
+            isMobileRef.current = mobile;
+            setIsMobile(mobile);
+            if (!mobile) smoothSfRef.current = null;
+        };
+        update();
+        mql.addEventListener("change", update);
+        return () => mql.removeEventListener("change", update);
     }, []);
 
     /** Initial scroll position → committed step + fills (no Flip on first paint). */
@@ -762,7 +1093,7 @@ export default function HowItWorks() {
     const shouldRunSectionMotion = isSectionActive && !isDocumentHidden;
 
     useEffect(() => {
-        if (typeof window === "undefined" || !shouldRunSectionMotion) return;
+        if (typeof window === "undefined" || !shouldRunSectionMotion || isMobile) return;
 
         const scheduleScrollRead = () => {
             if (scrollRafRef.current != null) return;
@@ -850,7 +1181,7 @@ export default function HowItWorks() {
             if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
             snapTweenRef.current?.kill();
         };
-    }, [computeStepFloat, finishScrollInteraction, shouldRunSectionMotion]);
+    }, [computeStepFloat, finishScrollInteraction, shouldRunSectionMotion, isMobile]);
 
     /** Drive unified segment progress (card outline + spine) from the same clock as autoplay. */
     useEffect(() => {
@@ -883,9 +1214,15 @@ export default function HowItWorks() {
             const c = activeIndexRef.current;
             const isLastStep = c >= STEPS.length - 1;
 
-            if (!userHasInteracted && !isLastStep && elapsed >= AUTOPLAY_INTERVAL_MS) {
-                applyNextStepAutoplay();
-                return;
+            if (!userHasInteracted && elapsed >= AUTOPLAY_INTERVAL_MS) {
+                if (!isLastStep) {
+                    applyNextStepAutoplay();
+                    return;
+                }
+                if (isMobileRef.current) {
+                    applyStepIndex(0);
+                    return;
+                }
             }
 
             setSegmentCombined01(canonicalSegmentCombinedFromElapsed(elapsed));
@@ -900,13 +1237,15 @@ export default function HowItWorks() {
         suppressScrollCommitUntilRef.current = performance.now() + PROGRAMMATIC_SCROLL_GUARD_MS;
         applyStepIndex(index);
 
-        // Scroll to the respective anchor
-        itemRefs.current[index]?.scrollIntoView({ behavior: "smooth", block: "center" });
+        if (!isMobileRef.current) {
+            itemRefs.current[index]?.scrollIntoView({ behavior: "smooth", block: "center" });
+        }
     };
 
     const moveFocusToStep = (index: number) => {
         const normalizedIndex = (index + STEPS.length) % STEPS.length;
-        tabRefs.current[normalizedIndex]?.focus();
+        const refs = isMobileRef.current ? mobileTabRefs : tabRefs;
+        refs.current[normalizedIndex]?.focus();
         handleStepSelection(normalizedIndex);
     };
 
@@ -940,13 +1279,13 @@ export default function HowItWorks() {
             id="how-it-works"
             ref={sectionRef}
             aria-label="How SecureLearning works"
-            className="relative h-[500vh] full-bleed"
+            className="relative h-[164vh] lg:h-[500vh] full-bleed"
         >
             {/* Visually hidden heading for a11y / SEO */}
             <h2 className="sr-only">How SecureLearning works</h2>
 
-            {/* Scroll Anchors — 1 intro + 4 steps */}
-            <div className="absolute inset-0 z-0 pointer-events-none">
+            {/* Scroll Anchors — 1 intro + 4 steps (desktop only) */}
+            <div className="absolute inset-0 z-0 pointer-events-none hidden lg:block">
                 <div className="h-screen w-full" />{/* intro viewport */}
                 {STEPS.map((_, i) => (
                     <div
@@ -958,30 +1297,30 @@ export default function HowItWorks() {
                 ))}
             </div>
 
-            {/* Sticky Container — overflow-hidden viewport frame */}
-            <div className="sticky top-0 h-screen w-full overflow-hidden">
-                {/* Wipe wrapper — 2×vh stack that slides upward */}
-                <div ref={introWrapperRef} style={{ willChange: "transform" }}>
+            {/* Sticky Container — overflow-hidden viewport frame (desktop only) */}
+            <div className="sticky top-0 h-[100svh] lg:h-screen w-full overflow-hidden">
+                {/* Wipe wrapper — 2×vh stack that slides upward (desktop) */}
+                <div ref={introWrapperRef} className="[will-change:transform]">
 
-                    {/* Panel 1: Sentence — starts centred on screen */}
-                    <div className="h-screen flex items-center justify-center pointer-events-none">
+                    {/* Panel 1: Sentence — centred on screen (desktop); compact block (mobile) */}
+                    <div className="h-[100svh] lg:h-screen flex items-center justify-center pointer-events-none">
                         <p
                             ref={sentenceRef}
                             aria-hidden
-                            className="hiw-sentence hiw-underline text-[2.2rem] md:text-[2.8rem] lg:text-[3.4rem] font-light italic tracking-[-0.02em] select-none"
-                            style={{ opacity: 0, willChange: "opacity, filter" }}
+                            className="hiw-sentence hiw-underline text-[1.7rem] md:text-[2.8rem] lg:text-[3.4rem] font-light italic tracking-[-0.02em] select-none opacity-0"
+                            style={{ willChange: "opacity, filter" }}
                         >
                             Sounds complicated?
                         </p>
                     </div>
 
-                    {/* Panel 2: Content — pulled up closer to sentence */}
-                    <div className="h-screen flex items-center -mt-[30vh]">
+                    {/* Panel 2: Content — pulled up closer to sentence (desktop); normal flow (mobile) */}
+                    <div className="h-[100svh] lg:h-screen flex items-center -mt-[58vh] sm:-mt-[50vh] md:-mt-[28vh] lg:-mt-[30vh]">
                         <div className="relative mx-auto max-w-[1440px] w-full px-6 md:px-12">
                             <div
                                 ref={contentGridRef}
-                                className="grid grid-cols-1 lg:grid-cols-[380px_1fr] gap-x-16 items-center"
-                                style={{ opacity: 0, willChange: "opacity" }}
+                                className="grid grid-cols-1 lg:grid-cols-[380px_1fr] gap-x-16 lg:items-center opacity-0"
+                                style={{ willChange: "opacity" }}
                             >
 
                                 {/* Left: Vertical Timeline */}
@@ -1003,6 +1342,20 @@ export default function HowItWorks() {
                                     <StagePanels
                                         activeIndex={activeIndex}
                                         idBase={idBase}
+                                    />
+                                </div>
+
+                                {/* Mobile: Horizontal Timeline (below glass display) */}
+                                <div className="lg:hidden">
+                                    <HorizontalTimeline
+                                        activeIndex={activeIndex}
+                                        cardOutlineProgress01={cardOutlineProgress01}
+                                        connectorFillPercents={connectorFillPercents}
+                                        idBase={idBase}
+                                        tabRefs={mobileTabRefs}
+                                        onSelectStep={handleStepSelection}
+                                        onTabKeyDown={handleTabKeyDown}
+                                        progressKey={progressKey}
                                     />
                                 </div>
 

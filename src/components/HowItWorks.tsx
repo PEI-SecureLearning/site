@@ -90,10 +90,39 @@ const STEPS: readonly HowItWorksStep[] = [
     },
 ] as const;
 
-const AUTOPLAY_INTERVAL_MS = 6000;
+const STEP_STAGE_MEDIA: Partial<
+    Record<
+        HowItWorksStep["id"],
+        {
+            webm?: string;
+            mp4?: string;
+            durationMs?: number;
+            imageSrc?: string;
+        }
+    >
+> = {
+    import: {
+        webm: "/assets/how-it-works/1-import-org.webm",
+        mp4: "/assets/how-it-works/1-import-org.mp4",
+        durationMs: 23080,
+    },
+    build: {
+        webm: "/assets/how-it-works/2-launch-campaign.webm",
+        mp4: "/assets/how-it-works/2-launch-campaign.mp4",
+        durationMs: 43235,
+    },
+    launch: {
+        imageSrc: "/assets/how-it-works/step3-placeholder.webp",
+    },
+    train: {
+        imageSrc: "/assets/how-it-works/step4-placeholder.jpg",
+    },
+};
+
+const DEFAULT_AUTOPLAY_INTERVAL_MS = 6000;
 const CARD_FILL_DURATION_MS = 4600;
 /** Share of each step segment spent tracing the active card outline (rest = vertical connector). */
-const CARD_SEGMENT_FRACTION = CARD_FILL_DURATION_MS / AUTOPLAY_INTERVAL_MS;
+const CARD_SEGMENT_FRACTION = CARD_FILL_DURATION_MS / DEFAULT_AUTOPLAY_INTERVAL_MS;
 /**
  * Symmetric commit band in `stepFloat` units: advance at `sf >= c + B`, retreat at `sf <= c - B`.
  * Leaves a dead zone so crossing one threshold cannot immediately ping-pong the other way.
@@ -122,9 +151,13 @@ const HORIZONTAL_ACTIVE_CARD_PADDING_X_PX = 32;
 function StagePanels({
     activeIndex,
     idBase,
+    onStepDurationResolved,
+    canPlayActiveMedia,
 }: Readonly<{
     activeIndex: number;
     idBase: string;
+    onStepDurationResolved: (stepId: HowItWorksStep["id"], durationMs: number) => void;
+    canPlayActiveMedia: boolean;
 }>) {
     return (
         <div className="relative w-full max-w-[1240px]">
@@ -173,13 +206,12 @@ function StagePanels({
                                 style={{ ...step.beamStyle, transition: "none" }}
                             />
 
-                            <Image
-                                src="/assets/placeholders/how-it-works-admin-console.png"
-                                alt={step.title}
-                                fill
-                                sizes="(min-width: 1024px) 1024px, 92vw"
-                                className="object-cover object-top opacity-90"
+                            <StagePanelMedia
+                                step={step}
+                                isActive={isActive}
+                                canPlay={canPlayActiveMedia}
                                 priority={index === 0}
+                                onDurationResolved={onStepDurationResolved}
                             />
                         </div>
                     );
@@ -205,8 +237,72 @@ function StagePanels({
     );
 }
 
-function canonicalSegmentCombinedFromElapsed(elapsedMs: number): number {
-    return Math.min(1, Math.max(0, elapsedMs / AUTOPLAY_INTERVAL_MS));
+function StagePanelMedia({
+    step,
+    isActive,
+    canPlay,
+    priority,
+    onDurationResolved,
+}: Readonly<{
+    step: HowItWorksStep;
+    isActive: boolean;
+    canPlay: boolean;
+    priority: boolean;
+    onDurationResolved: (stepId: HowItWorksStep["id"], durationMs: number) => void;
+}>) {
+    const media = STEP_STAGE_MEDIA[step.id];
+    const videoRef = useRef<HTMLVideoElement | null>(null);
+
+    useEffect(() => {
+        const video = videoRef.current;
+        if (!video) return;
+
+        if (isActive && canPlay) {
+            void video.play().catch(() => {
+                // Autoplay can be rejected in some environments; leave the first frame rendered.
+            });
+            return;
+        }
+
+        video.pause();
+        video.currentTime = 0;
+    }, [isActive, canPlay]);
+
+    if (media?.webm && media?.mp4) {
+        return (
+            <video
+                ref={videoRef}
+                muted
+                loop
+                playsInline
+                preload={priority ? "auto" : "metadata"}
+                className="h-full w-full object-cover object-top opacity-90"
+                onLoadedMetadata={(event) => {
+                    const durationSec = event.currentTarget.duration;
+                    if (!Number.isFinite(durationSec) || durationSec <= 0) return;
+                    onDurationResolved(step.id, durationSec * 1000);
+                }}
+            >
+                <source src={media.webm} type="video/webm" />
+                <source src={media.mp4} type="video/mp4" />
+            </video>
+        );
+    }
+
+    return (
+        <Image
+            src={media?.imageSrc ?? "/assets/placeholders/how-it-works-admin-console.png"}
+            alt={step.title}
+            fill
+            sizes="(min-width: 1024px) 1024px, 92vw"
+            className="object-cover object-top opacity-90"
+            priority={priority}
+        />
+    );
+}
+
+function canonicalSegmentCombinedFromElapsed(elapsedMs: number, intervalMs: number): number {
+    return Math.min(1, Math.max(0, elapsedMs / intervalMs));
 }
 
 /** Vertical connector fill (0–100) for each spine segment from unified segment progress [0,1]. */
@@ -825,15 +921,18 @@ export default function HowItWorks() {
     const snapTweenRef = useRef<gsap.core.Tween | null>(null);
     const stepFloatRef = useRef(0);
     const stepClockStartRef = useRef(0);
+    const stepDurationsMsRef = useRef<Partial<Record<HowItWorksStep["id"], number>>>({});
     const savedElapsedOnScrollStartRef = useRef(0);
     const reduceMotionRef = useRef(false);
     /** Smoothed step-float for the intro visuals — lerped toward the real value each frame. */
     const smoothSfRef = useRef<number | null>(null);  // null = not yet initialised
     /** True once the content grid has fully faded in after the intro. */
     const contentReadyRef = useRef(false);
+    const stageMediaVisibleRef = useRef(false);
 
     const isMobileRef = useRef(false);
     const [isMobile, setIsMobile] = useState(false);
+    const [isStageMediaVisible, setIsStageMediaVisible] = useState(false);
 
     activeIndexRef.current = activeIndex;
 
@@ -849,6 +948,28 @@ export default function HowItWorks() {
         const vh = window.innerHeight || 1;
         return -section.getBoundingClientRect().top / vh - 1;
     }, []);
+
+    const getStepIntervalMs = useCallback((index: number) => {
+        const step = STEPS[index];
+        const resolved = stepDurationsMsRef.current[step.id];
+        if (typeof resolved === "number" && Number.isFinite(resolved) && resolved > 0) {
+            return resolved;
+        }
+        const configured = STEP_STAGE_MEDIA[step.id]?.durationMs;
+        if (typeof configured === "number" && Number.isFinite(configured) && configured > 0) {
+            return configured;
+        }
+        return DEFAULT_AUTOPLAY_INTERVAL_MS;
+    }, []);
+
+    const handleStepDurationResolved = useCallback(
+        (stepId: HowItWorksStep["id"], durationMs: number) => {
+            const roundedDurationMs = Math.max(250, Math.round(durationMs));
+            if (stepDurationsMsRef.current[stepId] === roundedDurationMs) return;
+            stepDurationsMsRef.current[stepId] = roundedDurationMs;
+        },
+        []
+    );
 
     /**
      * Drives the intro → content wipe in 3 phases:
@@ -913,6 +1034,12 @@ export default function HowItWorks() {
                 ? `translateY(${(1 - contentF) * 2.5}vh)`
                 : "translateY(0)";
 
+            const shouldShowStageMedia = contentF >= 0.98;
+            if (stageMediaVisibleRef.current !== shouldShowStageMedia) {
+                stageMediaVisibleRef.current = shouldShowStageMedia;
+                setIsStageMediaVisible(shouldShowStageMedia);
+            }
+
             if (contentF >= 0.98 && !contentReadyRef.current) {
                 contentReadyRef.current = true;
                 stepClockStartRef.current = performance.now();
@@ -940,7 +1067,10 @@ export default function HowItWorks() {
         snapTweenRef.current?.kill();
         snapTweenRef.current = null;
         const elapsed = performance.now() - stepClockStartRef.current;
-        const target = canonicalSegmentCombinedFromElapsed(elapsed);
+        const target = canonicalSegmentCombinedFromElapsed(
+            elapsed,
+            getStepIntervalMs(activeIndexRef.current)
+        );
         const start = segmentCombinedRef.current;
         if (reduceMotionRef.current) {
             setSegmentCombined01(target);
@@ -963,7 +1093,7 @@ export default function HowItWorks() {
                 setSegmentCombined01(target);
             },
         });
-    }, []);
+    }, [getStepIntervalMs]);
 
     const finishScrollInteraction = useCallback(() => {
         if (!isScrollingRef.current) return;
@@ -1127,7 +1257,8 @@ export default function HowItWorks() {
                     snapTweenRef.current = null;
                     isSnappingRef.current = false;
                     const canonical = canonicalSegmentCombinedFromElapsed(
-                        performance.now() - stepClockStartRef.current
+                        performance.now() - stepClockStartRef.current,
+                        getStepIntervalMs(activeIndexRef.current)
                     );
                     segmentCombinedRef.current = canonical;
                     setSegmentCombined01(canonical);
@@ -1181,7 +1312,7 @@ export default function HowItWorks() {
             if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
             snapTweenRef.current?.kill();
         };
-    }, [computeStepFloat, finishScrollInteraction, shouldRunSectionMotion, isMobile]);
+    }, [computeStepFloat, finishScrollInteraction, shouldRunSectionMotion, isMobile, getStepIntervalMs]);
 
     /** Drive unified segment progress (card outline + spine) from the same clock as autoplay. */
     useEffect(() => {
@@ -1213,8 +1344,9 @@ export default function HowItWorks() {
             const elapsed = now - stepClockStartRef.current;
             const c = activeIndexRef.current;
             const isLastStep = c >= STEPS.length - 1;
+            const activeIntervalMs = getStepIntervalMs(c);
 
-            if (!userHasInteracted && elapsed >= AUTOPLAY_INTERVAL_MS) {
+            if (!userHasInteracted && elapsed >= activeIntervalMs) {
                 if (!isLastStep) {
                     applyNextStepAutoplay();
                     return;
@@ -1225,12 +1357,12 @@ export default function HowItWorks() {
                 }
             }
 
-            setSegmentCombined01(canonicalSegmentCombinedFromElapsed(elapsed));
+            setSegmentCombined01(canonicalSegmentCombinedFromElapsed(elapsed, activeIntervalMs));
         };
 
         rafId = window.requestAnimationFrame(tick);
         return () => cancelAnimationFrame(rafId);
-    }, [activeIndex, userHasInteracted, applyNextStepAutoplay, shouldRunSectionMotion, updateIntroVisuals]);
+    }, [activeIndex, userHasInteracted, applyNextStepAutoplay, shouldRunSectionMotion, updateIntroVisuals, getStepIntervalMs]);
 
     const handleStepSelection = (index: number) => {
         setUserHasInteracted(true);
@@ -1342,6 +1474,8 @@ export default function HowItWorks() {
                                     <StagePanels
                                         activeIndex={activeIndex}
                                         idBase={idBase}
+                                        onStepDurationResolved={handleStepDurationResolved}
+                                        canPlayActiveMedia={shouldRunSectionMotion && isStageMediaVisible}
                                     />
                                 </div>
 

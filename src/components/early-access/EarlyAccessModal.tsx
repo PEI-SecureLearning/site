@@ -79,7 +79,9 @@ export function EarlyAccessModal({ onClose }: { onClose: () => void }) {
   const [phase, setPhase] = useState<Phase>("form");
   const [firstName, setFirstName] = useState("");
   const [email, setEmail] = useState("");
+  const [website, setWebsite] = useState("");
   const [fieldError, setFieldError] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const [reduceMotion, setReduceMotion] = useState(false);
   /** Touch-primary UI (phones, most tablets); used to avoid scrim-dismiss during password prank */
@@ -153,8 +155,9 @@ export function EarlyAccessModal({ onClose }: { onClose: () => void }) {
     });
   }, [reduceMotion, phase]);
 
-  const onSubmitForm = (e: React.FormEvent) => {
+  const onSubmitForm = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmitting) return;
     setFieldError(null);
     const name = firstName.trim();
     const em = email.trim();
@@ -167,11 +170,40 @@ export function EarlyAccessModal({ onClose }: { onClose: () => void }) {
       setFieldError("Please enter a valid email address.");
       return;
     }
-    // TODO: submit name + email to backend / Google Sheets
-    lastFleeAt.current = 0;
-    setFleeCount(0);
-    setPrankDecoyPuff(false);
-    setPhase("prank");
+
+    setIsSubmitting(true);
+
+    try {
+      const response = await fetch("/api/early-access", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          name,
+          email: em,
+          website,
+        }),
+      });
+
+      const result = (await response.json().catch(() => null)) as
+        | { ok?: boolean; error?: string }
+        | null;
+
+      if (!response.ok || !result?.ok) {
+        setFieldError(result?.error || "Something went wrong. Please try again.");
+        return;
+      }
+
+      lastFleeAt.current = 0;
+      setFleeCount(0);
+      setPrankDecoyPuff(false);
+      setPhase("prank");
+    } catch {
+      setFieldError("Something went wrong. Please try again.");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   useEffect(() => {
@@ -313,12 +345,27 @@ export function EarlyAccessModal({ onClose }: { onClose: () => void }) {
                     placeholder="you@company.com"
                   />
                 </div>
+                <div
+                  aria-hidden="true"
+                  className="pointer-events-none absolute opacity-0"
+                  style={{ inset: "-9999px auto auto -9999px" }}
+                >
+                  <label htmlFor="ea-website">Website</label>
+                  <input
+                    id="ea-website"
+                    name="website"
+                    tabIndex={-1}
+                    autoComplete="off"
+                    value={website}
+                    onChange={(e) => setWebsite(e.target.value)}
+                  />
+                </div>
                 {fieldError ? (
                   <p className="text-sm text-[#fca5a5]" role="alert">
                     {fieldError}
                   </p>
                 ) : null}
-                <button type="submit" className="btn btn-primary mt-5 w-full">
+                <button type="submit" className="btn btn-primary mt-5 w-full" disabled={isSubmitting}>
                   Submit
                 </button>
               </form>

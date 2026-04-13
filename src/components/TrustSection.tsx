@@ -87,7 +87,6 @@ export default function TrustSection() {
 
         const desktopMedia = window.matchMedia("(min-width: 768px)");
         if (!desktopMedia.matches) {
-            setIsGridActive(true);
             return;
         }
 
@@ -106,6 +105,15 @@ export default function TrustSection() {
 
         return () => observer.disconnect();
     }, []);
+
+    useEffect(() => {
+        if (typeof window === "undefined") return;
+
+        const desktopMedia = window.matchMedia("(min-width: 768px)");
+        if (desktopMedia.matches || !isTitleVisible) return;
+
+        setIsGridActive(true);
+    }, [isTitleVisible]);
 
     const handleSequenceRelease = useCallback(() => {
         const section = sectionRef.current;

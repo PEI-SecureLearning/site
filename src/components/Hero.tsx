@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import Reveal from "./Reveal";
 import { useEarlyAccess } from "./early-access/EarlyAccessProvider";
@@ -93,9 +94,9 @@ export default function Hero() {
               <button type="button" className="btn btn-primary" onClick={openEarlyAccess}>
                 Request Early Access
               </button>
-              <a href="#how-it-works" className="btn btn-secondary">
-                See How It Works
-              </a>
+              <Link href="/journey" className="btn btn-secondary">
+                Follow our journey
+              </Link>
             </div>
 
           </div>

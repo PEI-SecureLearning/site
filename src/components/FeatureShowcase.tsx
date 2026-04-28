@@ -54,18 +54,29 @@ const features: Feature[] = [
 function BrowserMockup({
     children,
     flip,
+    isFirefox,
     browserRef,
     staticStyle,
     wrapperClassName,
 }: Readonly<{
     children: React.ReactNode;
     flip: boolean;
+    isFirefox: boolean;
     browserRef?: React.RefObject<HTMLDivElement | null>;
     staticStyle?: React.CSSProperties;
     wrapperClassName?: string;
 }>) {
     const fallbackBrowserRef = useRef<HTMLDivElement>(null);
     const resolvedBrowserRef = browserRef ?? fallbackBrowserRef;
+
+    // Firefox/Gecko recomputes matrix3d on every parent repaint when
+    // transform-origin has a Z component inside a preserve-3d subtree, and
+    // that recomputation isn't numerically stable — the mock visibly
+    // micro-rotates while anything nearby (the card) animates. Chrome/Blink
+    // evaluates the origin once and caches, so it's fine. Strip the Z
+    // offset on Firefox only; the 2D pivot is stable.
+    const originX = flip ? "right center" : "left center";
+    const transformOrigin = isFirefox ? originX : `${originX} -300px`;
 
     return (
         <div
@@ -76,8 +87,8 @@ function BrowserMockup({
                 ref={resolvedBrowserRef}
                 className="relative w-full"
                 style={{
-                    transformStyle: "preserve-3d",
-                    transformOrigin: flip ? "right center -300px" : "left center -300px",
+                    transformStyle: isFirefox ? "flat" : "preserve-3d",
+                    transformOrigin,
                     ...staticStyle,
                 }}
             >
@@ -90,7 +101,7 @@ function BrowserMockup({
                     }}
                 />
                 <div
-                    className="relative overflow-hidden rounded-[24px] border border-[rgba(167,139,250,0.18)] bg-[#0e0b14]/85 backdrop-blur-2xl"
+                    className={`relative overflow-hidden rounded-[24px] border border-[rgba(167,139,250,0.18)] bg-[#0e0b14]/85 ${isFirefox ? "" : "backdrop-blur-2xl"}`}
                     style={
                         {
                             "--feature-browser-rotate-y": `${flip ? -12 : 12}deg`,
@@ -228,19 +239,27 @@ function FeatureCardCopy({ feature }: Readonly<{ feature: Feature }>) {
     );
 }
 
-function FeatureCardPanel({ feature }: Readonly<{ feature: Feature }>) {
+function FeatureCardPanel({
+    feature,
+    isFirefox,
+}: Readonly<{
+    feature: Feature;
+    isFirefox: boolean;
+}>) {
     return (
         <div
             className="relative flex flex-col items-start overflow-hidden rounded-2xl p-8 md:p-10"
             style={
                 {
                     "--feature-card-rotate-y": `${feature.flip ? -11 : 11}deg`,
-                    background: "rgba(0, 0, 0, 0.2)",
-                    backdropFilter: "blur(32px)",
-                    WebkitBackdropFilter: "blur(32px)",
+                    background: isFirefox
+                        ? "linear-gradient(180deg, rgba(12,10,16,0.82) 0%, rgba(7,6,12,0.78) 100%)"
+                        : "rgba(0, 0, 0, 0.2)",
+                    backdropFilter: isFirefox ? "none" : "blur(32px)",
+                    WebkitBackdropFilter: isFirefox ? "none" : "blur(32px)",
                     boxShadow: "0 40px 100px -20px rgba(0,0,0,0.8)",
                     transformOrigin: "top center",
-                    transformStyle: "preserve-3d",
+                    transformStyle: isFirefox ? "flat" : "preserve-3d",
                 } as React.CSSProperties
             }
         >
@@ -267,7 +286,13 @@ function FeatureCardPanel({ feature }: Readonly<{ feature: Feature }>) {
     );
 }
 
-function MobileFeatureBlock({ feature }: Readonly<{ feature: Feature }>) {
+function MobileFeatureBlock({
+    feature,
+    isFirefox,
+}: Readonly<{
+    feature: Feature;
+    isFirefox: boolean;
+}>) {
     const blockRef = useRef<HTMLDivElement>(null);
     const [isAnimated, setIsAnimated] = useState(false);
     const mobileBrowserTransform = "translate3d(0, 0, 0) scale(1)";
@@ -301,6 +326,7 @@ function MobileFeatureBlock({ feature }: Readonly<{ feature: Feature }>) {
                     <div className="w-[calc(100%+2rem)] -mx-4">
                         <BrowserMockup
                             flip={feature.flip}
+                            isFirefox={isFirefox}
                             wrapperClassName="max-w-none px-0"
                             staticStyle={{ transform: mobileBrowserTransform }}
                         >
@@ -318,7 +344,7 @@ function MobileFeatureBlock({ feature }: Readonly<{ feature: Feature }>) {
                                 filter: "drop-shadow(0 18px 30px rgba(0,0,0,0.42))",
                             }}
                         >
-                            <FeatureCardPanel feature={feature} />
+                            <FeatureCardPanel feature={feature} isFirefox={isFirefox} />
                         </div>
                     </div>
                 </Reveal>
@@ -328,7 +354,13 @@ function MobileFeatureBlock({ feature }: Readonly<{ feature: Feature }>) {
 }
 
 // Helper to provide refs to the map loop
-function FeatureBlock({ feature }: Readonly<{ feature: Feature }>) {
+function FeatureBlock({
+    feature,
+    isFirefox,
+}: Readonly<{
+    feature: Feature;
+    isFirefox: boolean;
+}>) {
     const sceneRef = useRef<HTMLDivElement>(null);
     const entrySentinelRef = useRef<HTMLDivElement>(null);
     const browserRef = useRef<HTMLDivElement>(null);
@@ -343,16 +375,45 @@ function FeatureBlock({ feature }: Readonly<{ feature: Feature }>) {
         if (!sceneRef.current || !entrySentinelRef.current || !browserRef.current || !cardRef.current) return;
 
         const ctx = gsap.context(() => {
-            gsap.set(browserRef.current, {
-                transformPerspective: 1600,
-                force3D: true,
-            });
+            // Firefox-only GPU compositing hints. Gecko's compositor stalls on
+            // heavy preserve-3d + rotateY subtrees, which compounds with scrub
+            // smoothing into visible lag. These hints promote the element to
+            // its own layer so the timeline can actually keep up with scroll.
+            const ffHints = isFirefox
+                ? { willChange: "transform, opacity", backfaceVisibility: "hidden" }
+                : {};
 
-            gsap.set(cardRef.current, {
-                transformPerspective: 1400,
-                transformOrigin: cardTransformOrigin,
-                force3D: true,
-            });
+            gsap.set(
+                browserRef.current,
+                isFirefox
+                    ? {
+                          transformPerspective: 1600,
+                          force3D: true,
+                          ...ffHints,
+                      }
+                    : {
+                          transformPerspective: 1600,
+                          force3D: true,
+                          ...ffHints,
+                      }
+            );
+
+            gsap.set(
+                cardRef.current,
+                isFirefox
+                    ? {
+                          transformPerspective: 1400,
+                          transformOrigin: cardTransformOrigin,
+                          force3D: true,
+                          ...ffHints,
+                      }
+                    : {
+                          transformPerspective: 1400,
+                          transformOrigin: cardTransformOrigin,
+                          force3D: true,
+                          ...ffHints,
+                      }
+            );
 
             ScrollTrigger.create({
                 trigger: sceneRef.current,
@@ -362,85 +423,157 @@ function FeatureBlock({ feature }: Readonly<{ feature: Feature }>) {
                 onToggle: (self) => setIsAnimated(self.isActive),
             });
 
-            const tl = gsap.timeline({
-                scrollTrigger: {
-                    trigger: entrySentinelRef.current,
-                    start: "top bottom",
-                    endTrigger: sceneRef.current,
-                    end: "bottom bottom",
-                    scrub: 1.1,
-                    invalidateOnRefresh: true,
-                },
-            });
+            // Card "from" and "to" states (shared by both browser branches).
+            const cardFromState = {
+                autoAlpha: 0,
+                x: direction * -120,
+                y: 30,
+                z: -220,
+                rotateY: direction * 20,
+                rotateX: 4,
+                rotateZ: direction * 3,
+                scale: 0.965,
+            };
+            const cardToState = {
+                autoAlpha: 1,
+                x: direction * -46,
+                y: 0,
+                z: 0,
+                rotateY: direction * 11,
+                rotateX: 2.6,
+                rotateZ: direction * 1.35,
+                scale: 1,
+            };
 
-            tl.fromTo(
-                browserRef.current,
-                {
+            if (isFirefox) {
+                const browserFromStateFirefox = {
                     x: direction * 410,
                     y: 92,
                     z: -1520,
                     rotateX: 19,
+                    rotateY: direction * -74,
                     rotateZ: direction * 2.8,
                     scale: 0.846,
                     autoAlpha: 0.14,
-                },
-                {
-                    x: direction * 18,
-                    y: -4,
+                };
+                const browserDockedStateFirefox = {
+                    x: direction * 116,
+                    y: 8,
                     z: 0,
-                    rotateX: 7.8,
-                    rotateZ: direction * 0.25,
-                    scale: 0.985,
+                    rotateX: 6.8,
+                    rotateY: direction * -8.5,
+                    rotateZ: direction * 0.18,
+                    scale: 0.9,
                     autoAlpha: 1,
-                    ease: "none",
-                    duration: 0.52,
-                },
-                0
-            )
-                .fromTo(
-                    browserRef.current,
-                    {
-                        rotateY: direction * -74,
+                };
+                const cardToStateFirefox = {
+                    ...cardToState,
+                    x: direction * -26,
+                };
+
+                const tl = gsap.timeline({
+                    scrollTrigger: {
+                        trigger: entrySentinelRef.current,
+                        start: "top bottom",
+                        endTrigger: sceneRef.current,
+                        end: "bottom bottom",
+                        scrub: 1.1,
+                        invalidateOnRefresh: true,
                     },
+                });
+
+                tl.fromTo(
+                    browserRef.current,
+                    browserFromStateFirefox,
                     {
-                        rotateY: direction * -11.5,
+                        ...browserDockedStateFirefox,
                         ease: "none",
-                        duration: 0.6,
+                        duration: 0.48,
                     },
                     0
                 )
-                .to({}, { duration: 0.04 }, 0.6)
-                .fromTo(
-                    cardRef.current,
+                    .set(
+                        browserRef.current,
+                        browserDockedStateFirefox,
+                        0.48
+                    )
+                    .to({}, { duration: 0.16 }, 0.48)
+                    .fromTo(
+                        cardRef.current,
+                        cardFromState,
+                        {
+                            ...cardToStateFirefox,
+                            ease: "power3.out",
+                            duration: 0.22,
+                        },
+                        0.64
+                    )
+                    .to({}, { duration: 0.1 });
+            } else {
+                const tl = gsap.timeline({
+                    scrollTrigger: {
+                        trigger: entrySentinelRef.current,
+                        start: "top bottom",
+                        endTrigger: sceneRef.current,
+                        end: "bottom bottom",
+                        scrub: 1.1,
+                        invalidateOnRefresh: true,
+                    },
+                });
+
+                tl.fromTo(
+                    browserRef.current,
                     {
-                        autoAlpha: 0,
-                        x: direction * -120,
-                        y: 30,
-                        z: -220,
-                        rotateY: direction * 20,
-                        rotateX: 4,
-                        rotateZ: direction * 3,
-                        scale: 0.965,
+                        x: direction * 410,
+                        y: 92,
+                        z: -1520,
+                        rotateX: 19,
+                        rotateZ: direction * 2.8,
+                        scale: 0.846,
+                        autoAlpha: 0.14,
                     },
                     {
-                        autoAlpha: 1,
-                        x: direction * -46,
-                        y: 0,
+                        x: direction * 18,
+                        y: -4,
                         z: 0,
-                        rotateY: direction * 11,
-                        rotateX: 2.6,
-                        rotateZ: direction * 1.35,
-                        scale: 1,
-                        ease: "power3.out",
-                        duration: 0.22,
+                        rotateX: 7.8,
+                        rotateZ: direction * 0.25,
+                        scale: 0.985,
+                        autoAlpha: 1,
+                        ease: "none",
+                        duration: 0.52,
                     },
-                    0.64
+                    0
                 )
-                .to({}, { duration: 0.1 });
+                    .fromTo(
+                        browserRef.current,
+                        {
+                            rotateY: direction * -74,
+                        },
+                        {
+                            rotateY: direction * -11.5,
+                            ease: "none",
+                            duration: 0.6,
+                        },
+                        0
+                    )
+                    .to({}, { duration: 0.04 }, 0.6)
+                    .fromTo(
+                        cardRef.current,
+                        cardFromState,
+                        {
+                            ...cardToState,
+                            ease: "power3.out",
+                            duration: 0.22,
+                        },
+                        0.64
+                    )
+                    .to({}, { duration: 0.1 });
+            }
         }, sceneRef);
 
         return () => ctx.revert();
-    }, [cardTransformOrigin, direction, feature.flip]);
+    }, [cardTransformOrigin, direction, feature.flip, isFirefox]);
 
     return (
         <div
@@ -456,7 +589,7 @@ function FeatureBlock({ feature }: Readonly<{ feature: Feature }>) {
                 <div
                     className={`absolute inset-0 z-0 flex items-center px-4 pt-[5.75rem] md:px-10 md:pt-[6.75rem] lg:px-14 ${browserJustify}`}
                 >
-                    <BrowserMockup flip={feature.flip} browserRef={browserRef}>
+                    <BrowserMockup flip={feature.flip} isFirefox={isFirefox} browserRef={browserRef}>
                         <FeatureBrowserCanvas feature={feature} isAnimated={isAnimated} />
                     </BrowserMockup>
                 </div>
@@ -473,7 +606,7 @@ function FeatureBlock({ feature }: Readonly<{ feature: Feature }>) {
                             filter: `drop-shadow(${direction * 20}px 20px 40px rgba(0,0,0,0.6))`,
                         }}
                     >
-                        <FeatureCardPanel feature={feature} />
+                        <FeatureCardPanel feature={feature} isFirefox={isFirefox} />
                     </div>
                 </div>
             </div>
@@ -486,6 +619,12 @@ function FeatureBlock({ feature }: Readonly<{ feature: Feature }>) {
 export default function FeatureShowcase() {
     const f3SentinelRef = useRef<HTMLDivElement>(null);
     const [shouldMountF3, setShouldMountF3] = useState(false);
+    const [isFirefox, setIsFirefox] = useState(false);
+
+    useEffect(() => {
+        if (typeof navigator === "undefined") return;
+        setIsFirefox(/firefox/i.test(navigator.userAgent));
+    }, []);
 
     useEffect(() => {
         if (shouldMountF3) return;
@@ -523,9 +662,9 @@ export default function FeatureShowcase() {
                     {features.map((feature) => (
                         <div key={feature.id}>
                             <div className="hidden md:block">
-                                <FeatureBlock feature={feature} />
+                                <FeatureBlock feature={feature} isFirefox={isFirefox} />
                             </div>
-                            <MobileFeatureBlock feature={feature} />
+                            <MobileFeatureBlock feature={feature} isFirefox={isFirefox} />
                         </div>
                     ))}
                 </div>

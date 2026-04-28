@@ -4,6 +4,7 @@ import { Suspense } from "react";
 import "./globals.css";
 
 import Navbar from "@/components/Navbar";
+import FirefoxNoticeGate from "@/components/FirefoxNoticeGate";
 
 const inter = Inter({
   variable: "--font-inter",
@@ -37,11 +38,11 @@ export default function RootLayout({
         className={`${inter.variable} ${geistMono.variable} antialiased bg-[var(--background)] text-[var(--foreground)]`}
       >
         <div className="flex min-h-screen flex-col bg-[var(--background)]">
+          <FirefoxNoticeGate />
           <Suspense fallback={null}>
             <Navbar />
           </Suspense>
           <main className="flex-1">{children}</main>
-          
         </div>
       </body>
     </html>

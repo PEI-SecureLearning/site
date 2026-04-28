@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { gsap } from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 
@@ -32,6 +32,12 @@ const STACK_OFFSET = 12;
 
 export default function ProblemStatement() {
     const sectionRef = useRef<HTMLElement>(null);
+    const [isFirefox, setIsFirefox] = useState(false);
+
+    useEffect(() => {
+        if (typeof navigator === "undefined") return;
+        setIsFirefox(/firefox/i.test(navigator.userAgent));
+    }, []);
 
     useEffect(() => {
         const ctx = gsap.context(() => {
@@ -192,14 +198,15 @@ export default function ProblemStatement() {
                         <div
                             key={i}
                             className={`pain-card-${i} absolute inset-x-0 rounded-2xl px-6 py-5 md:px-8 md:py-6 flex items-center justify-center`}
-                            // eslint-disable-next-line
                             style={{
                                 top: `${i * STACK_OFFSET}px`,
                                 opacity: 0,
                                 zIndex: i + 1,
-                                background: "rgba(0, 0, 0, 0.2)", // Pure sheer black "icy lens"
-                                backdropFilter: "blur(32px)",
-                                WebkitBackdropFilter: "blur(32px)",
+                                background: isFirefox
+                                    ? "linear-gradient(180deg, rgba(8,7,12,0.88) 0%, rgba(6,5,10,0.84) 100%)"
+                                    : "rgba(0, 0, 0, 0.2)", // Pure sheer black "icy lens"
+                                backdropFilter: isFirefox ? "none" : "blur(32px)",
+                                WebkitBackdropFilter: isFirefox ? "none" : "blur(32px)",
                                 boxShadow: "0 40px 100px -20px rgba(0,0,0,0.8)", // Base shadow only
                                 transformOrigin: "top center",
                             }}

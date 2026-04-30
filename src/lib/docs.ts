@@ -10,6 +10,7 @@ export interface DocMeta {
   phase: string;
   order: number;
   isMilestone?: boolean;
+  milestoneLabel?: string;
 }
 
 const DOCS_ROOT = path.join(process.cwd(), "content", "docs");
@@ -136,6 +137,28 @@ export const docs: DocMeta[] = [
     order: 13,
     isMilestone: true,
   },
+  {
+    slug: "milestone-1-2nd-semester",
+    title: "M1: Digital Accessibility and Usability",
+    summary: "Usability testing, SUS results, and HCI-driven interface improvements.",
+    updated: "2026-03-16",
+    file: "milestone-1-2nd-semester.md",
+    phase: "2nd Semester",
+    order: 14,
+    isMilestone: true,
+    milestoneLabel: "M1",
+  },
+  {
+    slug: "milestone-2-2nd-semester",
+    title: "M2: Prototype",
+    summary: "Prototype launch, implemented platform areas, and the main gaps still left to address.",
+    updated: "2026-03-23",
+    file: "milestone-2-2nd-semester.md",
+    phase: "2nd Semester",
+    order: 15,
+    isMilestone: true,
+    milestoneLabel: "M2",
+  },
 
 ];
 
@@ -162,4 +185,3 @@ export function getPhases() {
     });
   return phases;
 }
-

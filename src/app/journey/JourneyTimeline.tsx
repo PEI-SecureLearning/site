@@ -107,6 +107,7 @@ export function JourneyTimeline({ items }: JourneyTimelineProps) {
                 .filter((item) => item.isMilestone)
                 .length
             : null;
+          const milestoneLabel = doc.milestoneLabel ?? (milestoneNumber ? `M${milestoneNumber}` : "M");
           const alignmentClass = isEven
             ? "md:flex-row"
             : "md:flex-row-reverse";
@@ -184,7 +185,7 @@ export function JourneyTimeline({ items }: JourneyTimelineProps) {
                           >
                             <div className="flex flex-col gap-3">
                               <div className="flex items-center justify-between text-xs uppercase tracking-[0.25em] text-[var(--muted)]">
-                                <span>{milestoneNumber ? `M${milestoneNumber}` : "M"}</span>
+                                <span>{milestoneLabel}</span>
                                 <time className="text-[rgba(237,237,237,0.68)]">{doc.updated}</time>
                               </div>
                               <h2

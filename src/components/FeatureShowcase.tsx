@@ -1,10 +1,9 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type Ref } from "react";
 import Reveal from "./Reveal";
 import { gsap } from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
-import F1Construction from "./F1Construction";
 import F2Construction from "./F2Construction";
 import F3StateOneScene from "./F3StateOneScene";
 
@@ -173,14 +172,53 @@ function BrowserMockup({
     );
 }
 
+function FeatureMotionVideo({
+    isActive,
+}: Readonly<{ isActive: boolean }>) {
+    const videoRef = useRef<HTMLVideoElement | null>(null);
+
+    useEffect(() => {
+        const video = videoRef.current;
+        if (!video) return;
+
+        if (isActive) {
+            void video.play().catch(() => {
+                // Keep the poster or current frame if autoplay is blocked.
+            });
+            return;
+        }
+
+        video.pause();
+        video.currentTime = 0;
+    }, [isActive]);
+
+    return (
+        <video
+            ref={videoRef}
+            muted
+            playsInline
+            preload="metadata"
+            poster="/assets/features/f1-poster.webp"
+            className="h-full w-full object-cover object-top"
+            onEnded={(event) => {
+                event.currentTarget.pause();
+            }}
+        >
+            <source src="/assets/features/f1.webm" type="video/webm" />
+            <source src="/assets/features/f1.mp4" type="video/mp4" />
+        </video>
+    );
+}
+
 function FeatureBrowserCanvas({
     feature,
     isAnimated = true,
-}: Readonly<{ feature: Feature; isAnimated?: boolean }>) {
+    shouldPlayMedia = isAnimated,
+}: Readonly<{ feature: Feature; isAnimated?: boolean; shouldPlayMedia?: boolean }>) {
     return (
         <div className="relative h-[300px] w-full overflow-hidden bg-[#0A0A0A] md:h-[500px] lg:h-[700px]">
             {feature.id === "f1" ? (
-                <F1Construction isAnimated={isAnimated} />
+                <FeatureMotionVideo isActive={shouldPlayMedia} />
             ) : (
                 <F2Construction isAnimated={isAnimated} />
             )}
@@ -191,7 +229,7 @@ function FeatureBrowserCanvas({
 function FeatureCardCopy({ feature }: Readonly<{ feature: Feature }>) {
     return (
         <div className="relative flex w-full flex-col">
-            <div className="-mt-2 mb-5 flex items-center justify-center gap-4 text-center">
+            <div className="-mt-2 mb-5 flex items-center justify-center gap-4 text-center drop-shadow-[0_1px_10px_rgba(0,0,0,0.55)]">
                 <div className="h-px w-10 bg-[var(--accent-primary)]/82" />
                 <span className="font-mono text-[0.8rem] font-medium uppercase tracking-[0.2em] text-[var(--accent-primary)]/98">
                     {feature.badge}
@@ -199,7 +237,7 @@ function FeatureCardCopy({ feature }: Readonly<{ feature: Feature }>) {
                 <div className="h-px w-10 bg-[var(--accent-primary)]/82" />
             </div>
 
-            <h3 className="mb-4 max-w-[16.5ch] text-[2.45rem] font-semibold leading-[0.98] tracking-[-0.05em] text-white sm:text-[2.9rem]">
+            <h3 className="mb-4 max-w-[16.5ch] text-[2.45rem] font-semibold leading-[0.98] tracking-[-0.05em] text-white drop-shadow-[0_1px_5px_rgba(0,0,0,0.28)] sm:text-[2.9rem]">
                 {feature.id === "f1" ? (
                     <>
                         <span className="hidden sm:inline">
@@ -221,13 +259,13 @@ function FeatureCardCopy({ feature }: Readonly<{ feature: Feature }>) {
                 )}
             </h3>
 
-            <p className="max-w-[36ch] text-[1rem] leading-[1.7] text-white/64 md:text-[1.03rem]">
+            <p className="max-w-[36ch] text-[1rem] leading-[1.7] text-white/82 drop-shadow-[0_2px_14px_rgba(0,0,0,0.68)] md:text-[1.03rem]">
                 {feature.subhead}
             </p>
 
             <div className="mt-7 flex flex-col gap-4">
                 {feature.points.map((point) => (
-                    <div key={point} className="flex items-start gap-3">
+                    <div key={point} className="flex items-start gap-3 drop-shadow-[0_1px_10px_rgba(0,0,0,0.55)]">
                         <span className="mt-[0.58rem] h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--accent-primary)] shadow-[0_0_14px_rgba(124,58,237,0.45)]" />
                         <p className="text-[0.96rem] font-medium leading-[1.45] text-white/86 md:whitespace-nowrap md:text-[1rem]">
                             {point}
@@ -242,22 +280,26 @@ function FeatureCardCopy({ feature }: Readonly<{ feature: Feature }>) {
 function FeatureCardPanel({
     feature,
     isFirefox,
+    panelRef,
 }: Readonly<{
     feature: Feature;
     isFirefox: boolean;
+    panelRef?: Ref<HTMLDivElement>;
 }>) {
     return (
         <div
+            ref={panelRef}
             className="relative flex flex-col items-start overflow-hidden rounded-2xl p-8 md:p-10"
             style={
                 {
                     "--feature-card-rotate-y": `${feature.flip ? -11 : 11}deg`,
                     background: isFirefox
                         ? "linear-gradient(180deg, rgba(12,10,16,0.82) 0%, rgba(7,6,12,0.78) 100%)"
-                        : "rgba(0, 0, 0, 0.2)",
-                    backdropFilter: isFirefox ? "none" : "blur(32px)",
-                    WebkitBackdropFilter: isFirefox ? "none" : "blur(32px)",
+                        : "rgba(0, 0, 0, 0.16)",
+                    backdropFilter: isFirefox ? "none" : "blur(28px) saturate(1.15)",
+                    WebkitBackdropFilter: isFirefox ? "none" : "blur(32px) saturate(1.15)",
                     boxShadow: "0 40px 100px -20px rgba(0,0,0,0.8)",
+                    isolation: "isolate",
                     transformOrigin: "top center",
                     transformStyle: isFirefox ? "flat" : "preserve-3d",
                 } as React.CSSProperties
@@ -366,6 +408,7 @@ function FeatureBlock({
     const browserRef = useRef<HTMLDivElement>(null);
     const cardRef = useRef<HTMLDivElement>(null);
     const [isAnimated, setIsAnimated] = useState(false);
+    const [shouldPlayMedia, setShouldPlayMedia] = useState(false);
     const direction = feature.flip ? 1 : -1;
     const browserJustify = feature.flip ? "justify-end" : "justify-start";
     const cardJustify = feature.flip ? "justify-start" : "justify-end";
@@ -421,6 +464,17 @@ function FeatureBlock({
                 end: "bottom top",
                 invalidateOnRefresh: true,
                 onToggle: (self) => setIsAnimated(self.isActive),
+            });
+
+            ScrollTrigger.create({
+                trigger: entrySentinelRef.current,
+                start: "top bottom",
+                endTrigger: sceneRef.current,
+                end: "bottom bottom",
+                invalidateOnRefresh: true,
+                onEnter: () => setShouldPlayMedia(true),
+                onEnterBack: () => setShouldPlayMedia(true),
+                onLeaveBack: () => setShouldPlayMedia(false),
             });
 
             // Card "from" and "to" states (shared by both browser branches).
@@ -590,7 +644,11 @@ function FeatureBlock({
                     className={`absolute inset-0 z-0 flex items-center px-4 pt-[5.75rem] md:px-10 md:pt-[6.75rem] lg:px-14 ${browserJustify}`}
                 >
                     <BrowserMockup flip={feature.flip} isFirefox={isFirefox} browserRef={browserRef}>
-                        <FeatureBrowserCanvas feature={feature} isAnimated={isAnimated} />
+                        <FeatureBrowserCanvas
+                            feature={feature}
+                            isAnimated={isAnimated}
+                            shouldPlayMedia={shouldPlayMedia}
+                        />
                     </BrowserMockup>
                 </div>
 
@@ -598,15 +656,13 @@ function FeatureBlock({
                     className={`pointer-events-none absolute inset-0 z-20 flex items-center px-6 pt-[6rem] md:px-16 md:pt-[7rem] lg:px-28 ${cardJustify}`}
                 >
                     <div
-                        ref={cardRef}
                         className={`pointer-events-auto w-[88%] ${feature.id === "f1" ? "max-w-[440px] md:max-w-[500px] lg:max-w-[540px]" : "max-w-[400px] md:max-w-[440px] lg:max-w-[470px]"}`}
                         style={{
                             perspective: "1500px",
                             zIndex: 50,
-                            filter: `drop-shadow(${direction * 20}px 20px 40px rgba(0,0,0,0.6))`,
                         }}
                     >
-                        <FeatureCardPanel feature={feature} isFirefox={isFirefox} />
+                        <FeatureCardPanel feature={feature} isFirefox={isFirefox} panelRef={cardRef} />
                     </div>
                 </div>
             </div>

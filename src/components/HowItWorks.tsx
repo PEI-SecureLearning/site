@@ -4,7 +4,6 @@ import Image from "next/image";
 import {
     useCallback,
     useEffect,
-    useId,
     useLayoutEffect,
     useMemo,
     useRef,
@@ -885,7 +884,7 @@ export default function HowItWorks() {
     const sentenceRef = useRef<HTMLParagraphElement | null>(null);
     const contentGridRef = useRef<HTMLDivElement | null>(null);
     const introWrapperRef = useRef<HTMLDivElement | null>(null);
-    const idBase = useId().replace(/:/g, "");
+    const idBase = "how-it-works";
     const flipStateBeforeRef = useRef<Flip.FlipState | null>(null);
     const flipCtxRef = useRef<ReturnType<typeof gsap.context> | null>(null);
     const activeIndexRef = useRef(0);

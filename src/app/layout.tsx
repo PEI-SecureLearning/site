@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Analytics } from "@vercel/analytics/next";
 import { Inter, Geist_Mono } from "next/font/google";
 import { Suspense } from "react";
 import "./globals.css";
@@ -44,6 +45,7 @@ export default function RootLayout({
           </Suspense>
           <main className="flex-1">{children}</main>
         </div>
+        <Analytics />
       </body>
     </html>
   );

@@ -4,7 +4,6 @@ import { useEffect, useRef, useState, type Ref } from "react";
 import Reveal from "./Reveal";
 import { gsap } from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
-import F2Construction from "./F2Construction";
 import F3StateOneScene from "./F3StateOneScene";
 
 gsap.registerPlugin(ScrollTrigger);
@@ -174,7 +173,8 @@ function BrowserMockup({
 
 function FeatureMotionVideo({
     isActive,
-}: Readonly<{ isActive: boolean }>) {
+    featureId,
+}: Readonly<{ isActive: boolean; featureId: "f1" | "f2" }>) {
     const videoRef = useRef<HTMLVideoElement | null>(null);
 
     useEffect(() => {
@@ -198,14 +198,14 @@ function FeatureMotionVideo({
             muted
             playsInline
             preload="metadata"
-            poster="/assets/features/f1-poster.webp"
-            className="h-full w-full object-cover object-top"
+            poster={`/assets/features/${featureId}-poster.webp`}
+            className={`h-full w-full object-cover ${featureId === "f2" ? "object-[50%_58%]" : "object-top"}`}
             onEnded={(event) => {
                 event.currentTarget.pause();
             }}
         >
-            <source src="/assets/features/f1.webm" type="video/webm" />
-            <source src="/assets/features/f1.mp4" type="video/mp4" />
+            <source src={`/assets/features/${featureId}.webm`} type="video/webm" />
+            <source src={`/assets/features/${featureId}.mp4`} type="video/mp4" />
         </video>
     );
 }
@@ -217,11 +217,7 @@ function FeatureBrowserCanvas({
 }: Readonly<{ feature: Feature; isAnimated?: boolean; shouldPlayMedia?: boolean }>) {
     return (
         <div className="relative h-[300px] w-full overflow-hidden bg-[#0A0A0A] md:h-[500px] lg:h-[700px]">
-            {feature.id === "f1" ? (
-                <FeatureMotionVideo isActive={shouldPlayMedia} />
-            ) : (
-                <F2Construction isAnimated={isAnimated} />
-            )}
+            <FeatureMotionVideo featureId={feature.id} isActive={shouldPlayMedia} />
         </div>
     );
 }
@@ -656,7 +652,7 @@ function FeatureBlock({
                     className={`pointer-events-none absolute inset-0 z-20 flex items-center px-6 pt-[6rem] md:px-16 md:pt-[7rem] lg:px-28 ${cardJustify}`}
                 >
                     <div
-                        className={`pointer-events-auto w-[88%] ${feature.id === "f1" ? "max-w-[440px] md:max-w-[500px] lg:max-w-[540px]" : "max-w-[400px] md:max-w-[440px] lg:max-w-[470px]"}`}
+                        className="pointer-events-auto w-[88%] max-w-[440px] md:max-w-[500px] lg:max-w-[540px]"
                         style={{
                             perspective: "1500px",
                             zIndex: 50,

@@ -111,10 +111,14 @@ const STEP_STAGE_MEDIA: Partial<
         durationMs: 43235,
     },
     launch: {
-        imageSrc: "/assets/how-it-works/step3-placeholder.webp",
+        webm: "/assets/how-it-works/3-details.webm",
+        mp4: "/assets/how-it-works/3-details.mp4",
+        durationMs: 17967,
     },
     train: {
-        imageSrc: "/assets/how-it-works/step4-placeholder.jpg",
+        webm: "/assets/how-it-works/4-assign_training.webm",
+        mp4: "/assets/how-it-works/4-assign_training.mp4",
+        durationMs: 33633,
     },
 };
 
